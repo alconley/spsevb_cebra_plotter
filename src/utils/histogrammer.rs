@@ -148,8 +148,6 @@ impl Histogrammer {
         if let Some(HistogramTypes::Hist1D(hist)) = self.histogram_list.get(name) {
             let mut line_points = Vec::new();
 
-            let bin_width = hist.bin_width; // Width of each bin in the histogram.
-
             for item in hist.hist.iter() {
                 let start = item.bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the bin.
                 let end = item.bin.end().unwrap_or(f64::INFINITY); // End of the bin.

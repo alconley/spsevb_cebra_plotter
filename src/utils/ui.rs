@@ -1,9 +1,7 @@
 use eframe::egui::{self};
 use super::histogrammer::{Histogrammer};
 
-use crate::histograms::sps::add_sps_histograms;
-use crate::histograms::cebra::{Cebr3Detector, cebra_detector_ui, add_cebra_histograms};
-use crate::histograms::sps_cebra::{Cebr3DetectorWithSPS, sps_cebra_detector_ui, add_sps_cebra_histograms};
+use crate::histograms::histogram_creation::add_histograms;
 
 use std::sync::Arc;
 use std::path::PathBuf;
@@ -14,9 +12,6 @@ use std::time::SystemTime;
 pub struct MyApp {
     selected_directory: Option<PathBuf>,
     file_paths: Vec<PathBuf>,
-    selected_option: String,
-    cebr3_detectors: Vec<Cebr3Detector>,  
-    sps_cebr3_detectors: Vec<Cebr3DetectorWithSPS>,  
     histograms_loaded: bool,
     histogrammer: Histogrammer,
 }
@@ -26,9 +21,6 @@ impl MyApp {
         Self {
             selected_directory: None, 
             file_paths: Vec::new(),
-            selected_option: "SPS".to_string(), // Default to "SPS" histograms
-            cebr3_detectors: Vec::new(),
-            sps_cebr3_detectors: Vec::new(),
             histograms_loaded: false,
             histogrammer: Histogrammer::new(),
         }
@@ -62,42 +54,15 @@ impl eframe::App for MyApp {
                         // Convert Vec<PathBuf> to Arc<[PathBuf]>
                         let paths_arc: Arc<[PathBuf]> = Arc::from(self.file_paths.clone().into_iter().collect::<Box<[_]>>());
 
-                        if self.selected_option == "SPS" {
-                            match add_sps_histograms(paths_arc.clone()) {
-                                Ok(histogrammer) => {
-                                    self.histogrammer = histogrammer;
-                                    self.histograms_loaded = true;
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to load histograms: {:?}", e);
-                                }
+                        match add_histograms(paths_arc.clone()) {
+                            Ok(histogrammer) => {
+                                self.histogrammer = histogrammer;
+                                self.histograms_loaded = true;
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to load histograms: {:?}", e);
                             }
                         }
-
-                        if self.selected_option == "CeBrA" {
-                            match add_cebra_histograms(paths_arc.clone(), &mut self.cebr3_detectors) {
-                                Ok(histogrammer) => {
-                                    self.histogrammer = histogrammer;
-                                    self.histograms_loaded = true;
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to load histograms: {:?}", e);
-                                }
-                            }
-                        }
-
-                        if self.selected_option == "SPS+CeBrA" {
-                            match add_sps_cebra_histograms(paths_arc.clone(), &mut self.sps_cebr3_detectors) {
-                                Ok(histogrammer) => {
-                                    self.histogrammer = histogrammer;
-                                    self.histograms_loaded = true;
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to load histograms: {:?}", e);
-                                }
-                            }
-                        }
-
                     }
                 }
 
@@ -118,7 +83,6 @@ impl eframe::App for MyApp {
                 }
                 
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    
                     // Attempt to read the directory
                     match fs::read_dir(dir) {
                         Ok(entries) => {
@@ -162,38 +126,6 @@ impl eframe::App for MyApp {
 
         });
 
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-
-            ui.horizontal(|ui| {
-                // SPS SelectableLabel
-                if ui.selectable_label(self.selected_option == "SPS", "SPS").clicked() {
-                    self.selected_option = "SPS".to_string();
-                }
-
-                // CeBrA SelectableLabel
-                if ui.selectable_label(self.selected_option == "CeBrA", "CeBrA").clicked() {
-                    self.selected_option = "CeBrA".to_string();
-                }
-
-                // SPS+CeBrA SelectableLabel
-                if ui.selectable_label(self.selected_option == "SPS+CeBrA", "SPS+CeBrA").clicked() {
-                    self.selected_option = "SPS+CeBrA".to_string();
-                }
-
-            });
-
-            // Call cebra_detector_ui outside the selectable label's scope
-            if self.selected_option == "CeBrA" {
-                cebra_detector_ui(&mut self.cebr3_detectors, ui);
-            }
-
-            // Call cebra_detector_ui outside the selectable label's scope
-            if self.selected_option == "SPS+CeBrA" {
-                sps_cebra_detector_ui(&mut self.sps_cebr3_detectors, ui);
-            }
-        
-         });
-
         if self.histograms_loaded {
 
             egui::SidePanel::right("histograms").show(ctx, |ui| {
@@ -203,7 +135,6 @@ impl eframe::App for MyApp {
             });
 
             egui::CentralPanel::default().show(ctx, |ui| {
-                // self.histogrammer.render_selected_histogram(ui);
                 self.histogrammer.render_selected_histograms(ui);
             });
         }
