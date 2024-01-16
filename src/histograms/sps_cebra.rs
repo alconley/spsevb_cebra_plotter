@@ -293,6 +293,8 @@ pub fn add_sps_cebra_histograms(file_paths: Arc<[PathBuf]>, detectors: &[Cebr3De
     h.add_hist2d("CeBrAEnergyGainMatched_X1_TimeCut", 600, (-300.0, 300.0), 512, (0.0, 4096.0));
     h.add_hist2d("CeBrAEnergyCalibrated_X1_TimeCut", 600, (-300.0, 300.0), cebra_ecal_bins, cebra_ecal_range);
 
+    h.add_hist1d("Xavg_TimeCut", 600, (-300.0, 300.0));
+
     for detector in detectors {
 
 
@@ -360,6 +362,7 @@ pub fn add_sps_cebra_histograms(file_paths: Arc<[PathBuf]>, detectors: &[Cebr3De
         h.fill_hist1d_from_polars("CeBrAEnergyGainMatched_TimeCut", &det_tcut_lf, &format!("Cebra{}EnergyGainMatched", num));
         h.fill_hist1d_from_polars("CeBrAEnergyCalibrated_TimeCut", &det_tcut_lf, &format!("Cebra{}EnergyCalibrated", num));
         h.fill_hist1d_from_polars("CeBrATimeToScint_TimeCut", &det_tcut_lf, &format!("Cebra{}TimeToScintShifted", num));
+        h.fill_hist1d_from_polars("Xavg_TimeCut", &det_tcut_lf, "Xavg");
         h.fill_hist2d_from_polars("CeBrAEnergyGainMatched_Xavg_TimeCut", &det_tcut_lf, "Xavg", &format!("Cebra{}EnergyGainMatched", num));
         h.fill_hist2d_from_polars("CeBrAEnergyCalibrated_Xavg_TimeCut", &det_tcut_lf, "Xavg", &format!("Cebra{}EnergyCalibrated", num));
         h.fill_hist2d_from_polars("CeBrAEnergyGainMatched_X1_TimeCut", &det_tcut_lf, "X1", &format!("Cebra{}EnergyGainMatched", num));
