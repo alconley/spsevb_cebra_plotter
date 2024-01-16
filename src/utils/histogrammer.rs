@@ -52,6 +52,8 @@ pub struct Hist2D {
     pub y_range: (f64, f64),
     pub y_bin_width: f64,
     pub hist: VecHistogram<AxesTuple<(Uniform<f64>, Uniform<f64>)>, f64>,
+    pub min_value: f64, // Minimum histogram value
+    pub max_value: f64, // Maximum histogram value
 }
 
 impl Hist2D {
@@ -75,7 +77,30 @@ impl Hist2D {
             Uniform::new(y_bins, y_range.0, y_range.1)
         );
 
-        Hist2D { name, x_range, x_bin_width, y_range, y_bin_width, hist }
+        // Initialize min and max values
+        let mut min_value = f64::INFINITY;
+        let mut max_value = f64::NEG_INFINITY;
+
+        // Calculate min and max values based on histogram data
+        for item in hist.iter() {
+            let count = *item.value;
+            min_value = min_value.min(count);
+            max_value = max_value.max(count);
+        }
+
+        // Hist2D { name, x_range, x_bin_width, y_range, y_bin_width, hist }
+        Hist2D { name, x_range, x_bin_width, y_range, y_bin_width, hist, min_value, max_value }
+    }
+
+    pub fn update_min_max_values(&mut self) {
+        self.min_value = f64::INFINITY;
+        self.max_value = f64::NEG_INFINITY;
+
+        for item in self.hist.iter() {
+            let count = *item.value;
+            self.min_value = self.min_value.min(count);
+            self.max_value = self.max_value.max(count);
+        }
     }
 
     // Additional methods for Hist2D could be implemented here
@@ -148,8 +173,6 @@ impl Histogrammer {
         if let Some(HistogramTypes::Hist1D(hist)) = self.histogram_list.get(name) {
             let mut line_points = Vec::new();
 
-            let bin_width = hist.bin_width; // Width of each bin in the histogram.
-
             for item in hist.hist.iter() {
                 let start = item.bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the bin.
                 let end = item.bin.end().unwrap_or(f64::INFINITY); // End of the bin.
@@ -197,6 +220,9 @@ impl Histogrammer {
             hist.hist.fill(&(x, y)); // Fill the histogram with the (x, y) pairs.
         }
 
+        // Update min and max values after filling the histogram
+        hist.update_min_max_values(); // Assuming this is a method in Hist2D
+
         true
     }
     
@@ -225,13 +251,8 @@ impl Histogrammer {
         if let Some(HistogramTypes::Hist2D(hist)) = self.histogram_list.get(name) {
             let mut bars = Vec::new();
 
-            // Calculate the minimum and maximum values in the histogram for color mapping.
-            let (mut min, mut max) = (f64::INFINITY, f64::NEG_INFINITY);
-            for item in hist.hist.iter() {
-                let count = *item.value;
-                min = min.min(count);
-                max = max.max(count);
-            }
+            let min = hist.min_value;
+            let max = hist.max_value;
 
             for item in hist.hist.iter() {
                 let (x_bin, y_bin) = item.bin;
@@ -376,19 +397,44 @@ impl Histogrammer {
 
 }
 
-// Function to create a color from the Viridis colormap
 fn viridis_colormap(value: f64, min: f64, max: f64) -> Color32 {
-
     // Apply logarithmic normalization if required
     let normalized = ((value - min) / (max - min)).clamp(0.0, 1.0);
 
     // Key colors from the Viridis colormap
-    let viridis_colors: [(f32, f32, f32); 5] = [
-        (0.267004, 0.004874, 0.329415), // dark purple
-        (0.229739, 0.322361, 0.545706), // blue
-        (0.127568, 0.566949, 0.550556), // cyan
-        (0.369214, 0.788888, 0.382914), // yellow-green
-        (0.993248, 0.906157, 0.143936), // yellow
+    let viridis_colors: [(f32, f32, f32); 32] = [
+        (0.267003985, 0.004872566, 0.329415069),
+        (0.277228998, 0.051716984, 0.37694991),
+        (0.28247969, 0.097334964, 0.419510575),
+        (0.282711276, 0.139317688, 0.456197068),
+        (0.278092635, 0.179895883, 0.486377421),
+        (0.269137787, 0.219429659, 0.50989087),
+        (0.256733532, 0.257754383, 0.52718378),
+        (0.242031461, 0.294643816, 0.539209024),
+        (0.226243756, 0.329989329, 0.547162826),
+        (0.210443168, 0.363856061, 0.552221276),
+        (0.195412486, 0.396435844, 0.555350926),
+        (0.181477325, 0.428017314, 0.557198854),
+        (0.168574228, 0.458905237, 0.55806733),
+        (0.156365949, 0.489384598, 0.557941172),
+        (0.144535294, 0.519685615, 0.556527663),
+        (0.133249552, 0.549958247, 0.553339219),
+        (0.123833067, 0.580259243, 0.547771637),
+        (0.119442112, 0.610546221, 0.53918201),
+        (0.124881902, 0.640695014, 0.526954942),
+        (0.144277738, 0.670499732, 0.510554716),
+        (0.178281445, 0.699705646, 0.489567134),
+        (0.224797439, 0.72801441, 0.463677887),
+        (0.281243458, 0.755097766, 0.432683204),
+        (0.345693489, 0.780604757, 0.396465689),
+        (0.416705432, 0.80418531, 0.355029985),
+        (0.493228829, 0.825506231, 0.308497657),
+        (0.574270238, 0.844288831, 0.257257704),
+        (0.658654029, 0.860389968, 0.202434461),
+        (0.744780537, 0.873933018, 0.147547821),
+        (0.830610047, 0.885437755, 0.10427358),
+        (0.91400241, 0.895811264, 0.100134278),
+        (0.993248149, 0.906154763, 0.143935944),
     ];
 
     // Interpolate between colors in the colormap
@@ -397,7 +443,7 @@ fn viridis_colormap(value: f64, min: f64, max: f64) -> Color32 {
     let fraction = scaled_val.fract() as f32;
 
     let color1 = viridis_colors[index];
-    let color2 = viridis_colors[index.min(viridis_colors.len() - 2)];
+    let color2 = viridis_colors[(index + 1).min(viridis_colors.len() - 1)];
 
     let red = (color1.0 + fraction * (color2.0 - color1.0)) * 255.0;
     let green = (color1.1 + fraction * (color2.1 - color1.1)) * 255.0;
