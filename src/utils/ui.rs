@@ -1,19 +1,27 @@
 use eframe::egui::{self};
-use super::histogrammer::{Histogrammer};
-
-use crate::histograms::histogram_creation::add_histograms;
-
 use std::sync::Arc;
 use std::path::PathBuf;
 use std::fs::{self};
 use std::time::SystemTime;
+
+// use super::histogrammer::Histogrammer;
+// use super::cut::EditablePolygon;
+
+use super::plot_manager::PlotManager;
+
+use crate::histograms::histogram_creation::add_histograms;
+use crate::utils::histogrammer::Histogrammer;
+use crate::utils::cut::EditablePolygon;
 
 #[derive(Default)]
 pub struct MyApp {
     selected_directory: Option<PathBuf>,
     file_paths: Vec<PathBuf>,
     histograms_loaded: bool,
-    histogrammer: Histogrammer,
+    plot_manager: PlotManager,
+    // histogrammer: Histogrammer,
+    draw_cut: bool,
+    // cut: EditablePolygon,
 }
 
 impl MyApp {
@@ -22,7 +30,8 @@ impl MyApp {
             selected_directory: None, 
             file_paths: Vec::new(),
             histograms_loaded: false,
-            histogrammer: Histogrammer::new(),
+            plot_manager: PlotManager::new(Histogrammer::new(), EditablePolygon::new()),
+            draw_cut: false,
         }
     }
 }
@@ -56,7 +65,8 @@ impl eframe::App for MyApp {
 
                         match add_histograms(paths_arc.clone()) {
                             Ok(histogrammer) => {
-                                self.histogrammer = histogrammer;
+                                // self.histogrammer = histogrammer;
+                                self.plot_manager.histogrammer = histogrammer;
                                 self.histograms_loaded = true;
                             }
                             Err(e) => {
@@ -130,14 +140,20 @@ impl eframe::App for MyApp {
 
             egui::SidePanel::right("histograms").show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    self.histogrammer.render_buttons(ui);
+                    self.plot_manager.render_buttons(ui);
                 });
             });
 
-            egui::CentralPanel::default().show(ctx, |ui| {
-                self.histogrammer.render_selected_histograms(ui);
+            egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+                
+                self.plot_manager.cut.cut_ui(ui, &mut self.draw_cut);
+
             });
+
+            egui::CentralPanel::default().show(ctx, |ui| {
+                self.plot_manager.render_selected_histograms(ui, self.draw_cut);
+            });
+
         }
     }
-
 }
