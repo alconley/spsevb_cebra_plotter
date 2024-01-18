@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 use std::io::BufReader;
+use std::collections::HashMap;
 
 use egui_plot::{Points, PlotPoints, Polygon, PlotUi};
 use eframe::egui::{Color32, Stroke};
@@ -106,8 +107,15 @@ impl EditablePolygon {
 
     // Save the current state of the polygon to a JSON file.
     fn save_cut_to_json(&self) -> Result<(), Box<dyn std::error::Error>> {
+
+        let default_filename = if let (Some(y_col), Some(x_col)) = (&self.selected_y_column, &self.selected_x_column) {
+            format!("{}_{}_cut.json", y_col, x_col)
+        } else {
+            "cut.json".to_string()
+        };
+
         if let Some(file_path) = FileDialog::new()
-            .set_file_name("cut.json")  // Suggest a default file name
+            .set_file_name(&default_filename) 
             .add_filter("JSON Files", &["json"])  // Add a filter for json files
             .save_file() {
 
@@ -200,3 +208,5 @@ impl EditablePolygon {
         }
     }
 }
+
+
