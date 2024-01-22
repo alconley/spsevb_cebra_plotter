@@ -2,9 +2,9 @@ use ndarray::Array1;
 use ndhistogram::{ndhistogram, Histogram, VecHistogram, AxesTuple, axis::Uniform};
 use std::collections::HashMap;
 use eframe::egui::{Color32, Stroke};
+
 use egui_plot::{Bar, Orientation, BarChart, Line, PlotPoints};
 use polars::prelude::*;
-
 
 /// Represents a one-dimensional histogram.
 pub struct Hist1D {
@@ -355,23 +355,26 @@ fn viridis_colormap(value: f64, min: f64, max: f64) -> Color32 {
 }
 
 fn column_to_array1(dataframe: &LazyFrame, column_name: &str) -> Result<Array1<f64>, PolarsError> {
-    // Select and filter the column, then collect into a DataFrame
-    let df = dataframe.clone()
+    // Collect the DataFrame
+    let df = dataframe
+        .clone()
         .select([col(column_name)])
-        .filter(col(column_name).neq(lit(-1e6))) // our null values are -1e6, could be removed
+        .filter(col(column_name).neq(lit(-1e6))) // Filter out -1e6 values
         .collect()?;
 
     // Extract the column as a Series
     let series = df.column(column_name)?;
 
-    // Try to convert the Series into a ChunkedArray of f64
+    // Convert the Series to ChunkedArray<f64>
     let chunked_array = series.f64()?;
 
-    // Convert the ChunkedArray into a Vec<f64>, filtering out None values
-    let vec: Vec<f64> = chunked_array.into_iter().filter_map(|opt| opt).collect();
+    // Convert the ChunkedArray<f64> to an ndarray view
+    let array_view = chunked_array.to_ndarray()?;
 
-    // Convert the Vec<f64> into Array1<f64>
-    Ok(Array1::from(vec))
+    // Convert the view to an owned Array1<f64>
+    let array_owned = array_view.to_owned();
+
+    Ok(array_owned)
 }
 
 fn columns_to_array1(dataframe: &LazyFrame, x_column_name: &str, y_column_name: &str) -> Result<(Array1<f64>, Array1<f64>), PolarsError> {
@@ -389,10 +392,12 @@ fn columns_to_array1(dataframe: &LazyFrame, x_column_name: &str, y_column_name: 
     let chunked_array_x = series_x.f64()?;
     let chunked_array_y = series_y.f64()?;
 
-    // Convert the ChunkedArray into a Vec<f64>, filtering out None values
-    let vec_x: Vec<f64> = chunked_array_x.into_iter().filter_map(|opt| opt).collect();
-    let vec_y: Vec<f64> = chunked_array_y.into_iter().filter_map(|opt| opt).collect();
+    let array_view_x = chunked_array_x.to_ndarray()?;
+    let array_view_y = chunked_array_y.to_ndarray()?;
+
+    let array_owned_x = array_view_x.to_owned();
+    let array_owned_y = array_view_y.to_owned();
 
     // Convert the Vecs into Array1<f64>
-    Ok((Array1::from(vec_x), Array1::from(vec_y)))
+    Ok((array_owned_x, array_owned_y))
 }

@@ -1,26 +1,24 @@
 use super::histogrammer::{Histogrammer, HistogramTypes};
-use super::cut::EditablePolygon;
 use egui_plot::{Plot, Legend};
-use eframe::egui::{Color32};
+use eframe::egui::Color32;
 
-#[derive(Default)]
+use crate::utils::cut::CutHandler;
+
+
 pub struct PlotManager {
-    // Fields necessary for plotting
-    // For example, you might need a reference to the histogram data and the cut data
     pub histogrammer: Histogrammer,
     selected_histograms: Vec<String>,
-    pub cut: EditablePolygon,
-    // Other fields as necessary
+    pub cutter: CutHandler,
 }
 
 impl PlotManager {
-    // Initialize the new struct
-    pub fn new(histogrammer: Histogrammer, cut: EditablePolygon) -> Self {
+
+    pub fn new(histogrammer: Histogrammer, cutter: CutHandler) -> Self {
+
         Self {
             histogrammer,
-            cut,
             selected_histograms: Vec::new(),
-            // Initialize other fields
+            cutter,
         }
     }
 
@@ -38,7 +36,6 @@ impl PlotManager {
         self.histogrammer.histogram_list.get(name)
     }
 
-    // Renders buttons for selecting histograms on the UI.
     pub fn render_buttons(&mut self, ui: &mut egui::Ui) {
 
         ui.label("Histograms"); // Label for the histogram buttons.
@@ -68,8 +65,7 @@ impl PlotManager {
         });
     }
 
-    // Renders the selected histograms on the UI.
-    pub fn render_selected_histograms(&mut self, ui: &mut egui::Ui, draw_cut: bool) {
+    pub fn render_selected_histograms(&mut self, ui: &mut egui::Ui) {
         // Display a message if no histograms are selected.
         if self.selected_histograms.is_empty() {
             ui.label("No histogram selected");
@@ -109,6 +105,7 @@ impl PlotManager {
                             plot_ui.bar_chart(bar_chart);
                         }
                     }
+
                     None => {
                         // Optionally handle the case where the histogram is not found or its type is not supported.
                         // ui.label(format!("Histogram '{}' not found or type not supported.", selected_name));
@@ -116,9 +113,12 @@ impl PlotManager {
                 }
             }
 
-            if draw_cut {
-                self.cut.draw(plot_ui);
+
+            // Draw the current EditableEguiPolygon
+            if let Some(editable_polygon) = self.cutter.current_editable_polygon.as_mut() {
+                editable_polygon.draw(plot_ui); 
             }
+
         });
     }
 

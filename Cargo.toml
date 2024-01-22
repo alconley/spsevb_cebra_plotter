@@ -10,15 +10,16 @@ polars = { version = "0.36", features = ["lazy", "parquet", "ndarray"] }
 ndarray = "0.15"
 ndarray-stats = "0.5.1"
 ndhistogram = "0.9.0"
-egui = "0.24.1"
-eframe = "0.24.1"
-egui_plot = "0.24.2"
+egui = "0.25.0"
+eframe = "0.25.0"
+egui_plot = "0.25.0"
 env_logger = { version = "0.10", default-features = false, features = [
     "auto-color",
     "humantime",
 ] }
-rfd = "0.11"
+rfd = "0.13"
 egui_extras = { version = "*", features = ["all_loaders"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8"
+serde_yaml = "0.9.30"
 serde_json = "1.0"
+polygonical = "0.5.0"
