@@ -1,14 +1,11 @@
-use crate::utils::histogrammer::Histogrammer;
 use polars::prelude::*;
-
 use std::sync::Arc;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::BufReader;
-
 use serde_json;
 
-use crate::utils::cut::Cut2D;
+use crate::utils::histogrammer::Histogrammer;
 use crate::utils::egui_polygon::EditableEguiPolygon;
 
 pub fn add_histograms(file_paths: Arc<[PathBuf]>, cut_file_path: Option<PathBuf>) -> Result<Histogrammer, PolarsError> {
@@ -47,19 +44,18 @@ fn cut_file_to_df(cut_file_path: &PathBuf, lf: &LazyFrame) -> Result<LazyFrame, 
     let file = File::open(cut_file_path)?;
     let reader = BufReader::new(file);
 
-    // let loaded_polygon: EditableEguiPolygon = serde_json::from_reader(reader)?;
-
     let loaded_polygon: EditableEguiPolygon = serde_json::from_reader(reader)
         .map_err(|e| PolarsError::ComputeError(format!("Failed to deserialize cut: {}", e).into()))?;
 
-    // Extract the column names, handle the case where they are None
-    let x_col = "ScintLeftEnergy";
 
-    let y_col = "AnodeBackEnergy";
+    // Clone and extract the column names or return an error if they are None
+    let x_col = loaded_polygon.selected_x_column.clone()
+        .ok_or_else(|| PolarsError::ComputeError("X column name is missing in the cut file".into()))?;
+    let y_col = loaded_polygon.selected_y_column.clone()
+        .ok_or_else(|| PolarsError::ComputeError("Y column name is missing in the cut file".into()))?;
 
-    let cut2d = Cut2D::new(loaded_polygon);
+    let df = loaded_polygon.filter_dataframe(lf, &x_col, &y_col)?;
 
-    let df = cut2d.filter_dataframe(lf, x_col, y_col)?;
 
     Ok(df)
 }

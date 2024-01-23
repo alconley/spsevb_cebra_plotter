@@ -1,4 +1,6 @@
-use egui_plot::{Points, PlotPoints, Polygon, PlotUi};
+use egui_plot::{Points, PlotPoints, PlotUi};
+use egui_plot::Polygon as EguiPolygon;
+
 use eframe::egui::{Color32, Stroke};
 
 use std::fs::File;
@@ -8,6 +10,11 @@ use serde::{Serialize, Deserialize};
 use serde_json;
 
 use rfd::FileDialog;
+
+use geo::{Point, Polygon, LineString, algorithm::contains::Contains};
+
+use polars::prelude::*;
+
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct EditableEguiPolygon {
@@ -95,7 +102,7 @@ impl EditableEguiPolygon {
         if !self.vertices.is_empty() {
             let color = Color32::RED;
             let plot_points = PlotPoints::new(self.vertices.clone());
-            let polygon_points = Polygon::new(plot_points).fill_color(Color32::TRANSPARENT).stroke(Stroke::new(4.0, color));
+            let polygon_points = EguiPolygon::new(plot_points).fill_color(Color32::TRANSPARENT).stroke(Stroke::new(4.0, color));
             plot_ui.polygon(polygon_points); // Draw the polygon
 
             let vertices = Points::new(self.vertices.clone()).radius(5.0).color(color);
@@ -137,6 +144,90 @@ impl EditableEguiPolygon {
         }
         Ok(())
     }
+
+    fn to_geo_polygon(&self) -> Polygon<f64> {
+        let exterior_coords: Vec<_> = self.vertices.iter()
+            .map(|&[x, y]| (x, y))
+            .collect();
+        let exterior_line_string = LineString::from(exterior_coords);
+        Polygon::new(exterior_line_string, vec![])
+    }
+
+    pub fn filter_dataframe(&self, dataframe: &LazyFrame, x_column_name: &str, y_column_name: &str) -> Result<LazyFrame, polars::error::PolarsError> {
+
+        let df = dataframe.clone()
+            // .select([col(x_column_name), col(y_column_name)])
+            .filter(col(x_column_name).neq(lit(-1e6)))
+            .filter(col(y_column_name).neq(lit(-1e6)))
+            .collect()?;
+
+        let x_col = df.column(x_column_name)?;
+        let y_col = df.column(y_column_name)?;
+
+        let polygon = self.to_geo_polygon();
+
+        let mask = x_col.f64()?
+            .into_iter()
+            .zip(y_col.f64()?)
+            .map(|(x, y)| {
+                match (x, y) {
+                    (Some(x), Some(y)) => {
+                        let point = Point::new(x, y);
+                        polygon.contains(&point)
+                    },
+                    _ => false,
+                }
+            })
+            .collect::<BooleanChunked>();
+
+        let filtered_df = df.filter(&mask)?.lazy();
+
+        Ok(filtered_df)
+    }
+
+    /*
+    pub fn filter_dataframe_test(&self, dataframe: LazyFrame) -> Result<DataFrame, polars::error::PolarsError> {
+
+        // Takes a polars dataframe
+        // creates a mask based on the polygon and columns
+        // filters dataframe with the mask
+        // Saves dataframe to a new file
+        // The essentially destroys the lazy operation and should not be used on a large amount of data
+
+        let x_column_name = self.selected_x_column.clone()
+            .ok_or_else(|| PolarsError::ComputeError("X column name must be something".into()))?;
+        let y_column_name = self.selected_y_column.clone()
+            .ok_or_else(|| PolarsError::ComputeError("Y column name must be something".into()))?;
+
+        let df = dataframe
+            .filter(col(&x_column_name).neq(lit(-1e6)))
+            .filter(col(&y_column_name).neq(lit(-1e6)))
+            .collect()?;
+
+        let x_col = df.column(&x_column_name)?;
+        let y_col = df.column(&y_column_name)?;
+
+        let polygon = self.to_geo_polygon();
+
+        let mask = x_col.f64()?
+            .into_iter()
+            .zip(y_col.f64()?)
+            .map(|(x, y)| {
+                match (x, y) {
+                    (Some(x), Some(y)) => {
+                        let point = Point::new(x, y);
+                        polygon.contains(&point)
+                    },
+                    _ => false,
+                }
+            })
+            .collect::<BooleanChunked>();
+
+        let filtered_df = df.filter(&mask)?;
+
+        Ok(filtered_df)
+    }
+*/
 
 }
 
