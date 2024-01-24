@@ -1,9 +1,8 @@
 use super::histogrammer::{Histogrammer, HistogramTypes};
-use egui_plot::{Plot, Legend};
+use egui_plot::{Plot, Legend, Text, PlotPoint};
 use eframe::egui::Color32;
 
 use crate::utils::cut::CutHandler;
-
 
 pub struct PlotManager {
     pub histogrammer: Histogrammer,
@@ -40,14 +39,14 @@ impl PlotManager {
 
         ui.label("Histograms"); // Label for the histogram buttons.
         
-        let keys = self.get_histogram_list(); // Retrieve the list of histogram names.
+        let keys: Vec<String> = self.get_histogram_list(); // Retrieve the list of histogram names.
 
         // Layout for the buttons: top down and justified at the top.
         ui.with_layout(egui::Layout::top_down_justified(egui::Align::TOP), |ui| {
             for name in keys {
                 // Create a button for each histogram name.
-                let button = egui::Button::new(&name);
-                let response = ui.add(button); // Add the button to the UI and get the response.
+                let button: egui::Button<'_> = egui::Button::new(&name);
+                let response: egui::Response = ui.add(button); // Add the button to the UI and get the response.
 
                 // If the button is clicked, clear the current selection and select this histogram.
                 if response.clicked() {
@@ -77,32 +76,54 @@ impl PlotManager {
             .legend(Legend::default())
             .clamp_grid(true)
             .allow_drag(false);
+            // .allow_scroll(false);
 
+        // Placeholder for statistics information
+        let mut statistics_text: String = String::new();
+        
         // Display the plot in the UI.
         plot.show(ui, |plot_ui| {
 
             // Define a set of colors for the histograms.
-            let colors = [
+            let colors: [Color32; 5] = [
                 Color32::LIGHT_BLUE, 
                 Color32::LIGHT_RED, 
                 Color32::LIGHT_GREEN, 
                 Color32::LIGHT_YELLOW, 
                 Color32::LIGHT_GRAY
             ];
-                
+
+
+            // Example: Get the current zoom area from the plot UI
+            let plot_min_x = plot_ui.plot_bounds().min()[0];
+            let plot_max_x = plot_ui.plot_bounds().max()[0];
+            // let plot_min_y = plot_ui.plot_bounds().min()[1];
+            // let plot_max_y = plot_ui.plot_bounds().max()[1];
+
             for (i, selected_name) in self.selected_histograms.iter().enumerate() {
                 // Render the appropriate histogram type based on its type.
                 match self.get_histogram_type(selected_name) {
-                    Some(HistogramTypes::Hist1D(_)) => {
+                    Some(HistogramTypes::Hist1D(hist1d)) => {
                         // Render a 1D histogram as a step line.
                         if let Some(step_line) = self.histogrammer.egui_histogram_step(selected_name, colors[i % colors.len()]) {
                             plot_ui.line(step_line);
+
+                            let stats: super::histogrammer::HistogramStatistics = hist1d.calculate_statistics(plot_min_x, plot_max_x);
+                            let statistics_text: &String = &format!("Integral: {}", stats.integral);
+
+                            plot_ui.text(
+                                Text::new(PlotPoint::new(0, 0), " ")
+                                .anchor(egui::Align2::LEFT_TOP)
+                                .highlight(false) 
+                                .name(statistics_text));
                         }
                     }
                     Some(HistogramTypes::Hist2D(_)) => {
                         // Render a 2D histogram as a heatmap.
                         if let Some(bar_chart) = self.histogrammer.egui_heatmap(selected_name) {
                             plot_ui.bar_chart(bar_chart);
+                            statistics_text += &format!("test");
+
                         }
                     }
 
@@ -114,10 +135,13 @@ impl PlotManager {
             }
 
 
+
             // Draw the current EditableEguiPolygon
             if let Some(editable_polygon) = self.cutter.current_editable_polygon.as_mut() {
                 editable_polygon.draw(plot_ui); 
             }
+
+
 
         });
     }

@@ -1,10 +1,18 @@
 use ndarray::Array1;
-use ndhistogram::{ndhistogram, Histogram, VecHistogram, AxesTuple, axis::Uniform};
+use ndhistogram::{ndhistogram, Histogram, VecHistogram, AxesTuple, axis::Uniform, axis::Axis};
 use std::collections::HashMap;
 use eframe::egui::{Color32, Stroke};
 
 use egui_plot::{Bar, Orientation, BarChart, Line, PlotPoints};
 use polars::prelude::*;
+
+/// Represents statistics for a histogram.
+pub struct HistogramStatistics {
+    pub integral: f64,
+    // pub mean: f64,
+    // pub std_dev: f64,
+    // Include other statistics as needed
+}
 
 /// Represents a one-dimensional histogram.
 pub struct Hist1D {
@@ -25,23 +33,46 @@ impl Hist1D {
     /// # Returns
     /// A new `Hist1D` instance.
     pub fn new(name: String, bins: usize, range: (f64, f64)) -> Hist1D {
-        let bin_width = (range.1 - range.0) / bins as f64;
-        let hist = ndhistogram!(Uniform::<f64>::new(bins, range.0, range.1));
+        let bin_width: f64 = (range.1 - range.0) / bins as f64;
+        let hist: VecHistogram<AxesTuple<(Uniform,)>, f64> = ndhistogram!(Uniform::<f64>::new(bins, range.0, range.1));
 
         Hist1D { name, range, bin_width, hist }
     }
 
-    // /// Get the bin number for a given x position.
-    // pub fn get_bin(&self, x: f64) -> Option<usize> {
-    //     // Retrieve the first (and only) axis from the histogram
-    //     let axis = &self.hist.axes();
+    /// Get the bin number for a given x position.
+    pub fn get_bin(&self, x: f64) -> Option<usize> {
+        if x < self.range.0 || x > self.range.1 {
+            return None;
+        }
+        
+        let bin_index: usize = (((x - self.range.0)) / self.bin_width).floor() as usize;
+        
+        Some(bin_index)
+    }
 
-    //     // Use the `index` method to find the bin number for the given x
-    //     axis.index(&x)
-    // }
+    // add mean and stdev sometime
+    pub fn calculate_statistics(&self, min_x: f64, max_x: f64) -> HistogramStatistics {
 
-    // Additional methods for Hist1D could be implemented here
-    // like getting the mean, std, counts
+        let num_bins: usize = self.hist.axes().num_bins() - 2; // Subtract 2 to account for under/overflow bins
+
+        let start_bin: usize = self.get_bin(min_x).unwrap_or(0);
+        let end_bin: usize = self.get_bin(max_x).unwrap_or(num_bins);
+
+        let mut integral: f64 = 0.0;
+        
+        for bin_index in start_bin..=end_bin {
+            // Calculate a coordinate within each bin's range
+            let coordinate: f64 = self.range.0 + (bin_index as f64) * self.bin_width + self.bin_width / 2.0;
+
+            // Using a coordinate within the bin to get its value
+            if let Some(value) = self.hist.value(&coordinate) {
+                integral += *value;
+            }
+        }
+
+        HistogramStatistics { integral }
+    }
+
 }
 
 /// Represents a two-dimensional histogram.
@@ -69,21 +100,21 @@ impl Hist2D {
     /// # Returns
     /// A new `Hist2D` instance.
     pub fn new(name: String, x_bins: usize, x_range: (f64, f64), y_bins: usize, y_range: (f64, f64)) -> Hist2D {
-        let x_bin_width = (x_range.1 - x_range.0) / x_bins as f64;
-        let y_bin_width = (y_range.1 - y_range.0) / y_bins as f64;
+        let x_bin_width: f64 = (x_range.1 - x_range.0) / x_bins as f64;
+        let y_bin_width: f64 = (y_range.1 - y_range.0) / y_bins as f64;
 
-        let hist = ndhistogram!(
+        let hist: VecHistogram<AxesTuple<(Uniform, Uniform)>, f64> = ndhistogram!(
             Uniform::new(x_bins, x_range.0, x_range.1),
             Uniform::new(y_bins, y_range.0, y_range.1)
         );
 
         // Initialize min and max values
-        let mut min_value = f64::INFINITY;
-        let mut max_value = f64::NEG_INFINITY;
+        let mut min_value: f64 = f64::INFINITY;
+        let mut max_value: f64 = f64::NEG_INFINITY;
 
         // Calculate min and max values based on histogram data
         for item in hist.iter() {
-            let count = *item.value;
+            let count: f64 = *item.value;
             min_value = min_value.min(count);
             max_value = max_value.max(count);
         }
@@ -97,7 +128,7 @@ impl Hist2D {
         self.max_value = f64::NEG_INFINITY;
 
         for item in self.hist.iter() {
-            let count = *item.value;
+            let count: f64 = *item.value;
             self.min_value = self.min_value.min(count);
             self.max_value = self.max_value.max(count);
         }
@@ -127,13 +158,13 @@ impl Histogrammer {
 
     // Adds a new 1D histogram to the histogram list.
     pub fn add_hist1d(&mut self, name: &str, bins: usize, range: (f64, f64)) {
-        let hist = Hist1D::new(name.to_string(), bins, range); // Create a new histogram.
+        let hist: Hist1D = Hist1D::new(name.to_string(), bins, range); // Create a new histogram.
         self.histogram_list.insert(name.to_string(), HistogramTypes::Hist1D(hist)); // Store it in the hashmap.
     }
 
     // Fills a 1D histogram with data.
     pub fn fill_hist1d(&mut self, name: &str, data: Array1<f64>) -> bool {
-        let hist = match self.histogram_list.get_mut(name) {
+        let hist: &mut Hist1D = match self.histogram_list.get_mut(name) {
             Some(HistogramTypes::Hist1D(hist)) => hist,
             _ => return false,  // Return false if the histogram doesn't exist.
         };
@@ -166,11 +197,11 @@ impl Histogrammer {
     // Generates a histogram using the bar chart from the `egui` library.
     pub fn egui_histogram_step(&self, name: &str, color: Color32) -> Option<Line> {
         if let Some(HistogramTypes::Hist1D(hist)) = self.histogram_list.get(name) {
-            let mut line_points = Vec::new();
+            let mut line_points: Vec<(f64, f64)> = Vec::new();
 
             for item in hist.hist.iter() {
-                let start = item.bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the bin.
-                let end = item.bin.end().unwrap_or(f64::INFINITY); // End of the bin.
+                let start: f64 = item.bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the bin.
+                let end: f64 = item.bin.end().unwrap_or(f64::INFINITY); // End of the bin.
     
                 // Skip bins with infinite bounds.
                 if start.is_infinite() || end.is_infinite() {
@@ -195,13 +226,13 @@ impl Histogrammer {
     
     // Adds a new 2D histogram to the histogram list.
     pub fn add_hist2d(&mut self, name: &str, x_bins: usize, x_range: (f64, f64), y_bins: usize, y_range: (f64, f64)) {
-        let hist = Hist2D::new(name.to_string(), x_bins, x_range, y_bins, y_range); // Create a new 2D histogram.
+        let hist: Hist2D = Hist2D::new(name.to_string(), x_bins, x_range, y_bins, y_range); // Create a new 2D histogram.
         self.histogram_list.insert(name.to_string(), HistogramTypes::Hist2D(hist)); // Store it in the hashmap.
     }
 
     // Fills a 2D histogram with x and y data.
     pub fn fill_hist2d(&mut self, name: &str, x_data: Array1<f64>, y_data: Array1<f64>) -> bool {
-        let hist = match self.histogram_list.get_mut(name) {
+        let hist: &mut Hist2D = match self.histogram_list.get_mut(name) {
             Some(HistogramTypes::Hist2D(hist)) => hist,
             _ => return false, // Return false if the histogram doesn't exist.
         };
@@ -246,8 +277,8 @@ impl Histogrammer {
         if let Some(HistogramTypes::Hist2D(hist)) = self.histogram_list.get(name) {
             let mut bars = Vec::new();
 
-            let min = hist.min_value;
-            let max = hist.max_value;
+            let min: f64 = hist.min_value;
+            let max: f64 = hist.max_value;
 
             for item in hist.hist.iter() {
                 let (x_bin, y_bin) = item.bin;
@@ -258,23 +289,23 @@ impl Histogrammer {
                     continue;
                 }
 
-                let x_bin_start = x_bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the x bin.
-                let x_bin_end = x_bin.end().unwrap_or(f64::INFINITY); // End of the x bin.
+                let x_bin_start: f64 = x_bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the x bin.
+                let x_bin_end: f64 = x_bin.end().unwrap_or(f64::INFINITY); // End of the x bin.
     
-                let y_bin_start = y_bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the y bin.
-                let y_bin_end = y_bin.end().unwrap_or(f64::INFINITY); // End of the y bin.
+                let y_bin_start: f64 = y_bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the y bin.
+                let y_bin_end: f64 = y_bin.end().unwrap_or(f64::INFINITY); // End of the y bin.
     
                 // Skip bins with infinite bounds to avoid rendering issues.
                 if x_bin_start.is_infinite() || x_bin_end.is_infinite() || y_bin_start.is_infinite() || y_bin_end.is_infinite() {
                     continue;
                 }
     
-                let x = (x_bin_start + x_bin_end) / 2.0; // Midpoint of the x bin.
-                let y = (y_bin_start + y_bin_end) / 2.0; // Midpoint of the y bin.
-                let bar_width = x_bin_end - x_bin_start; // Width of the x bin.
-                let height = y_bin_end - y_bin_start; // Height of the y bin.
+                let x: f64 = (x_bin_start + x_bin_end) / 2.0; // Midpoint of the x bin.
+                let y: f64 = (y_bin_start + y_bin_end) / 2.0; // Midpoint of the y bin.
+                let bar_width: f64 = x_bin_end - x_bin_start; // Width of the x bin.
+                let height: f64 = y_bin_end - y_bin_start; // Height of the y bin.
                 
-                let color = viridis_colormap(count, min, max); // Determine color based on the count, using a colormap.
+                let color: Color32 = viridis_colormap(count, min, max); // Determine color based on the count, using a colormap.
     
                 // Create a bar to represent the 2D histogram data.
                 let bar = Bar {
@@ -301,7 +332,7 @@ impl Histogrammer {
 
 fn viridis_colormap(value: f64, min: f64, max: f64) -> Color32 {
     // Apply logarithmic normalization if required
-    let normalized = ((value - min) / (max - min)).clamp(0.0, 1.0);
+    let normalized: f64 = ((value - min) / (max - min)).clamp(0.0, 1.0);
 
     // Key colors from the Viridis colormap
     let viridis_colors: [(f32, f32, f32); 32] = [
@@ -340,16 +371,16 @@ fn viridis_colormap(value: f64, min: f64, max: f64) -> Color32 {
     ];
 
     // Interpolate between colors in the colormap
-    let scaled_val = normalized * (viridis_colors.len() - 1) as f64;
-    let index = scaled_val.floor() as usize;
-    let fraction = scaled_val.fract() as f32;
+    let scaled_val: f64 = normalized * (viridis_colors.len() - 1) as f64;
+    let index: usize = scaled_val.floor() as usize;
+    let fraction: f32 = scaled_val.fract() as f32;
 
-    let color1 = viridis_colors[index];
-    let color2 = viridis_colors[(index + 1).min(viridis_colors.len() - 1)];
+    let color1: (f32, f32, f32) = viridis_colors[index];
+    let color2: (f32, f32, f32) = viridis_colors[(index + 1).min(viridis_colors.len() - 1)];
 
-    let red = (color1.0 + fraction * (color2.0 - color1.0)) * 255.0;
-    let green = (color1.1 + fraction * (color2.1 - color1.1)) * 255.0;
-    let blue = (color1.2 + fraction * (color2.2 - color1.2)) * 255.0;
+    let red: f32 = (color1.0 + fraction * (color2.0 - color1.0)) * 255.0;
+    let green: f32 = (color1.1 + fraction * (color2.1 - color1.1)) * 255.0;
+    let blue: f32 = (color1.2 + fraction * (color2.2 - color1.2)) * 255.0;
 
     Color32::from_rgb(red as u8, green as u8, blue as u8)
 }
@@ -363,40 +394,40 @@ fn column_to_array1(dataframe: &LazyFrame, column_name: &str) -> Result<Array1<f
         .collect()?;
 
     // Extract the column as a Series
-    let series = df.column(column_name)?;
+    let series: &Series = df.column(column_name)?;
 
     // Convert the Series to ChunkedArray<f64>
-    let chunked_array = series.f64()?;
+    let chunked_array: &ChunkedArray<Float64Type> = series.f64()?;
 
     // Convert the ChunkedArray<f64> to an ndarray view
-    let array_view = chunked_array.to_ndarray()?;
+    let array_view: ndarray::prelude::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::prelude::Dim<[usize; 1]>> = chunked_array.to_ndarray()?;
 
     // Convert the view to an owned Array1<f64>
-    let array_owned = array_view.to_owned();
+    let array_owned: ndarray::prelude::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> = array_view.to_owned();
 
     Ok(array_owned)
 }
 
 fn columns_to_array1(dataframe: &LazyFrame, x_column_name: &str, y_column_name: &str) -> Result<(Array1<f64>, Array1<f64>), PolarsError> {
     // Select and filter the column, then collect into a DataFrame
-    let df = dataframe.clone()
+    let df: DataFrame = dataframe.clone()
         .select([col(x_column_name), col(y_column_name)])
         .filter(col(x_column_name).neq(lit(-1e6)))
         .filter(col(y_column_name).neq(lit(-1e6)))
         .collect()?;
 
-    let series_x = df.column(x_column_name)?;
-    let series_y = df.column(y_column_name)?;
+    let series_x: &Series = df.column(x_column_name)?;
+    let series_y: &Series = df.column(y_column_name)?;
 
     // Try to convert the Series into a ChunkedArray of f64
-    let chunked_array_x = series_x.f64()?;
-    let chunked_array_y = series_y.f64()?;
+    let chunked_array_x: &ChunkedArray<Float64Type> = series_x.f64()?;
+    let chunked_array_y: &ChunkedArray<Float64Type> = series_y.f64()?;
 
-    let array_view_x = chunked_array_x.to_ndarray()?;
-    let array_view_y = chunked_array_y.to_ndarray()?;
+    let array_view_x: ndarray::prelude::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::prelude::Dim<[usize; 1]>> = chunked_array_x.to_ndarray()?;
+    let array_view_y: ndarray::prelude::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::prelude::Dim<[usize; 1]>> = chunked_array_y.to_ndarray()?;
 
-    let array_owned_x = array_view_x.to_owned();
-    let array_owned_y = array_view_y.to_owned();
+    let array_owned_x: ndarray::prelude::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> = array_view_x.to_owned();
+    let array_owned_y: ndarray::prelude::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> = array_view_y.to_owned();
 
     // Convert the Vecs into Array1<f64>
     Ok((array_owned_x, array_owned_y))
