@@ -9,8 +9,10 @@ use polars::prelude::*;
 /// Represents statistics for a histogram.
 pub struct HistogramStatistics {
     pub integral: f64,
-    // pub mean: f64,
-    // pub std_dev: f64,
+    pub mean_x: f64,
+    pub stdev_x: f64,
+    pub mean_y: f64,
+    pub stdev_y: f64,
     // Include other statistics as needed
 }
 
@@ -50,7 +52,6 @@ impl Hist1D {
         Some(bin_index)
     }
 
-    // add mean and stdev sometime
     pub fn calculate_statistics(&self, min_x: f64, max_x: f64) -> HistogramStatistics {
 
         let num_bins: usize = self.hist.axes().num_bins() - 2; // Subtract 2 to account for under/overflow bins
@@ -59,7 +60,8 @@ impl Hist1D {
         let end_bin: usize = self.get_bin(max_x).unwrap_or(num_bins);
 
         let mut integral: f64 = 0.0;
-        
+        let mut bin_product: f64 = 0.0;
+        let mut squared_diff_sum: f64 = 0.0; // Sum of squared differences for standard deviation
         for bin_index in start_bin..=end_bin {
             // Calculate a coordinate within each bin's range
             let coordinate: f64 = self.range.0 + (bin_index as f64) * self.bin_width + self.bin_width / 2.0;
@@ -67,10 +69,27 @@ impl Hist1D {
             // Using a coordinate within the bin to get its value
             if let Some(value) = self.hist.value(&coordinate) {
                 integral += *value;
+                bin_product += *value * coordinate;
             }
         }
 
-        HistogramStatistics { integral }
+        // Calculate the mean
+        let mean: f64 = bin_product / integral;
+
+        // Second pass to calculate the squared differences
+        for bin_index in start_bin..=end_bin {
+            let coordinate: f64 = self.range.0 + (bin_index as f64) * self.bin_width + self.bin_width / 2.0;
+
+            if let Some(value) = self.hist.value(&coordinate) {
+                let diff: f64 = coordinate - mean;
+                squared_diff_sum += *value * diff * diff;
+            }
+        }
+
+        let variance: f64 = squared_diff_sum / integral;
+        let stdev: f64 = variance.sqrt();
+
+        HistogramStatistics { integral , mean_x : mean, stdev_x : stdev, mean_y : 0.0, stdev_y : 0.0}
     }
 
 }
@@ -134,7 +153,55 @@ impl Hist2D {
         }
     }
 
-    // Additional methods for Hist2D could be implemented here
+
+    // pub fn get_bin_x(&self, x: f64) -> Option<usize> {
+    //     if x < self.x_range.0 || x > self.x_range.1 {
+    //         return None;
+    //     }
+        
+    //     let bin_index: usize = (((x - self.x_range.0)) / self.bin_width).floor() as usize;
+        
+    //     Some(bin_index)
+    // }
+
+    // pub fn calculate_statistics(&self, min_x: f64, max_x: f64, min_y: f64, max_y:f64) -> HistogramStatistics {
+            
+    //         let num_bins_x: usize = self.hist.axes().num_bins(0) - 2; // Subtract 2 to account for under/overflow bins
+    //         let num_bins_y: usize = self.hist.axes().num_bins(1) - 2; // Subtract 2 to account for under/overflow bins
+    
+    //         let start_bin_x: usize = self.get_bin_x(min_x).unwrap_or(0);
+    //         let end_bin_x: usize = self.get_bin_x(max_x).unwrap_or(num_bins_x);
+    
+    //         let start_bin_y: usize = self.get_bin_y(min_y).unwrap_or(0);
+    //         let end_bin_y: usize = self.get_bin_y(max_y).unwrap_or(num_bins_y);
+    
+    //         let mut integral: f64 = 0.0;
+    //         let mut bin_product_x: f64 = 0.0;
+    //         let mut bin_product_y: f64 = 0.0;
+    //         let mut squared_diff_sum_x: f64 = 0.0; // Sum of squared differences for standard deviation
+    //         let mut squared_diff_sum_y: f64 = 0.0; // Sum of squared differences for standard deviation
+    //         for bin_index_x in start_bin_x..=end_bin_x {
+    //             for bin_index_y in start_bin_y..=end_bin_y {
+    //                 // Calculate a coordinate within each bin's range
+    //                 let coordinate_x: f64 = self.x_range.0 + (bin_index_x as f64) * self.x_bin_width + self.x_bin_width / 2.0;
+    //                 let coordinate_y: f64 = self.y_range.0 + (bin_index_y as f64) * self.y_bin_width + self.y_bin_width / 2.0;
+    
+    //                 // Using a coordinate within the bin to get its value
+    //                 if let Some(value) = self.hist.value(&(coordinate_x, coordinate_y)) {
+    //                     integral += *value;
+    //                     bin_product_x += *value * coordinate_x;
+    //                     bin_product_y += *value * coordinate_y;
+    //                 }
+    //             }
+    //         }
+    
+    //         // Calculate the mean
+    //         let mean_x: f64 = bin_product_x / integral;
+    //         let mean_y: f64 = bin_product_y / integral;
+    
+    //         HistogramStatistics { integral , mean_x , stdev_x : 0.0, mean_y, stdev_y : 0.0}
+
+    // }
 }
 
 pub enum HistogramTypes {

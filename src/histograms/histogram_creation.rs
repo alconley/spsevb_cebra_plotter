@@ -34,6 +34,7 @@ pub fn add_histograms(file_paths: Arc<[PathBuf]>, cut_file_path: Option<PathBuf>
 
     h.add_fill_hist1d_from_polars("Xavg_bothplanes", &lf_bothplanes, "Xavg", 600, (-300.0, 300.0));
     h.add_fill_hist2d_from_polars("AnodeBack_ScintLeft", &lf_bothplanes, "ScintLeftEnergy", 512, (0.0, 4096.0), "AnodeBackEnergy", 512, (0.0, 4096.0));
+    h.add_fill_hist1d_from_polars("X1_bothplanes", &lf_bothplanes, "X1", 600, (-300.0, 300.0));
 
     Ok(h)
 }

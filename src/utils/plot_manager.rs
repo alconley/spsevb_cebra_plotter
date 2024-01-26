@@ -93,12 +93,10 @@ impl PlotManager {
                 Color32::LIGHT_GRAY
             ];
 
-
-            // Example: Get the current zoom area from the plot UI
             let plot_min_x = plot_ui.plot_bounds().min()[0];
             let plot_max_x = plot_ui.plot_bounds().max()[0];
-            // let plot_min_y = plot_ui.plot_bounds().min()[1];
-            // let plot_max_y = plot_ui.plot_bounds().max()[1];
+            let plot_min_y = plot_ui.plot_bounds().min()[1];
+            let plot_max_y = plot_ui.plot_bounds().max()[1];
 
             for (i, selected_name) in self.selected_histograms.iter().enumerate() {
                 // Render the appropriate histogram type based on its type.
@@ -109,13 +107,28 @@ impl PlotManager {
                             plot_ui.line(step_line);
 
                             let stats: super::histogrammer::HistogramStatistics = hist1d.calculate_statistics(plot_min_x, plot_max_x);
-                            let statistics_text: &String = &format!("Integral: {}", stats.integral);
+                            let integral_text: &String = &format!("Integral: {}", stats.integral);
+                            let mean_text: &String = &format!("Mean: {:.2}", stats.mean_x);
+                            let stdev_text: &String = &format!("Stdev: {:.2}", stats.stdev_x);
+
+                            // Found it was best to put these in the legend as a text box gets wanky with zooming in
+                            plot_ui.text(
+                                Text::new(PlotPoint::new(0, 0), " ")
+                                .highlight(false) 
+                                .color(colors[i % colors.len()])
+                                .name(integral_text));
 
                             plot_ui.text(
                                 Text::new(PlotPoint::new(0, 0), " ")
-                                .anchor(egui::Align2::LEFT_TOP)
                                 .highlight(false) 
-                                .name(statistics_text));
+                                .color(colors[i % colors.len()])
+                                .name(mean_text));
+
+                            plot_ui.text(
+                                Text::new(PlotPoint::new(0, 0), " ")
+                                .highlight(false) 
+                                .color(colors[i % colors.len()])
+                                .name(stdev_text));
                         }
                     }
                     Some(HistogramTypes::Hist2D(_)) => {
