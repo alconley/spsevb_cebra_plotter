@@ -167,7 +167,6 @@ impl eframe::App for MyApp {
     
             });
 
-            // add centralpanel last
             egui::CentralPanel::default().show(ctx, |ui| {
                 self.plot_manager.render_selected_histograms(ui);
             });

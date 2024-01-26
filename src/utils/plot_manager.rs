@@ -77,9 +77,6 @@ impl PlotManager {
             .clamp_grid(true)
             .allow_drag(false);
             // .allow_scroll(false);
-
-        // Placeholder for statistics information
-        let mut statistics_text: String = String::new();
         
         // Display the plot in the UI.
         plot.show(ui, |plot_ui| {
@@ -95,8 +92,8 @@ impl PlotManager {
 
             let plot_min_x = plot_ui.plot_bounds().min()[0];
             let plot_max_x = plot_ui.plot_bounds().max()[0];
-            let plot_min_y = plot_ui.plot_bounds().min()[1];
-            let plot_max_y = plot_ui.plot_bounds().max()[1];
+            // let plot_min_y = plot_ui.plot_bounds().min()[1];
+            // let plot_max_y = plot_ui.plot_bounds().max()[1];
 
             for (i, selected_name) in self.selected_histograms.iter().enumerate() {
                 // Render the appropriate histogram type based on its type.
@@ -106,6 +103,7 @@ impl PlotManager {
                         if let Some(step_line) = self.histogrammer.egui_histogram_step(selected_name, colors[i % colors.len()]) {
                             plot_ui.line(step_line);
 
+                            
                             let stats: super::histogrammer::HistogramStatistics = hist1d.calculate_statistics(plot_min_x, plot_max_x);
                             let integral_text: &String = &format!("Integral: {}", stats.integral);
                             let mean_text: &String = &format!("Mean: {:.2}", stats.mean_x);
@@ -129,14 +127,14 @@ impl PlotManager {
                                 .highlight(false) 
                                 .color(colors[i % colors.len()])
                                 .name(stdev_text));
+
+                             
                         }
                     }
                     Some(HistogramTypes::Hist2D(_)) => {
                         // Render a 2D histogram as a heatmap.
                         if let Some(bar_chart) = self.histogrammer.egui_heatmap(selected_name) {
                             plot_ui.bar_chart(bar_chart);
-                            statistics_text += &format!("test");
-
                         }
                     }
 
@@ -147,14 +145,10 @@ impl PlotManager {
                 }
             }
 
-
-
             // Draw the current EditableEguiPolygon
             if let Some(editable_polygon) = self.cutter.current_editable_polygon.as_mut() {
                 editable_polygon.draw(plot_ui); 
             }
-
-
 
         });
     }

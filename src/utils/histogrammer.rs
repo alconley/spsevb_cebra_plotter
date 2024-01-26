@@ -41,7 +41,7 @@ impl Hist1D {
         Hist1D { name, range, bin_width, hist }
     }
 
-    /// Get the bin number for a given x position.
+    // // Get the bin number for a given x position.
     pub fn get_bin(&self, x: f64) -> Option<usize> {
         if x < self.range.0 || x > self.range.1 {
             return None;
@@ -106,6 +106,8 @@ pub struct Hist2D {
     pub max_value: f64, // Maximum histogram value
 }
 
+
+// future make the histogram a HashHistogram 
 impl Hist2D {
     /// Creates a new `Hist2D` with the specified parameters.
     ///
@@ -154,20 +156,31 @@ impl Hist2D {
     }
 
 
-    // pub fn get_bin_x(&self, x: f64) -> Option<usize> {
-    //     if x < self.x_range.0 || x > self.x_range.1 {
-    //         return None;
-    //     }
+    /* Future work to get stats for 2D histograms
+    pub fn get_bin_x(&self, x: f64) -> Option<usize> {
+        if x < self.x_range.0 || x > self.x_range.1 {
+            return None;
+        }
         
-    //     let bin_index: usize = (((x - self.x_range.0)) / self.bin_width).floor() as usize;
+        let bin_index: usize = (((x - self.x_range.0)) / self.x_bin_width).floor() as usize;
         
-    //     Some(bin_index)
-    // }
+        Some(bin_index)
+    }
+
+    pub fn get_bin_y(&self, y: f64) -> Option<usize> {
+        if y < self.y_range.0 || y > self.x_range.1 {
+            return None;
+        }
+        
+        let bin_index: usize = (((y - self.y_range.0)) / self.y_bin_width).floor() as usize;
+        
+        Some(bin_index)
+    }
 
     // pub fn calculate_statistics(&self, min_x: f64, max_x: f64, min_y: f64, max_y:f64) -> HistogramStatistics {
             
-    //         let num_bins_x: usize = self.hist.axes().num_bins(0) - 2; // Subtract 2 to account for under/overflow bins
-    //         let num_bins_y: usize = self.hist.axes().num_bins(1) - 2; // Subtract 2 to account for under/overflow bins
+    //         let num_bins_x: usize = self.hist.axes().num_bins().0 - 2; // Subtract 2 to account for under/overflow bins
+    //         let num_bins_y: usize = self.hist.axes().num_bins().1 - 2; // Subtract 2 to account for under/overflow bins
     
     //         let start_bin_x: usize = self.get_bin_x(min_x).unwrap_or(0);
     //         let end_bin_x: usize = self.get_bin_x(max_x).unwrap_or(num_bins_x);
@@ -202,6 +215,7 @@ impl Hist2D {
     //         HistogramStatistics { integral , mean_x , stdev_x : 0.0, mean_y, stdev_y : 0.0}
 
     // }
+*/
 }
 
 pub enum HistogramTypes {
@@ -237,7 +251,7 @@ impl Histogrammer {
         };
 
         data.iter().for_each(|&value| hist.hist.fill(&value)); // Fill the histogram with data.
-
+        
         true
     }
 
@@ -467,10 +481,10 @@ fn column_to_array1(dataframe: &LazyFrame, column_name: &str) -> Result<Array1<f
     let chunked_array: &ChunkedArray<Float64Type> = series.f64()?;
 
     // Convert the ChunkedArray<f64> to an ndarray view
-    let array_view: ndarray::prelude::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::prelude::Dim<[usize; 1]>> = chunked_array.to_ndarray()?;
+    let array_view = chunked_array.to_ndarray()?;
 
     // Convert the view to an owned Array1<f64>
-    let array_owned: ndarray::prelude::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> = array_view.to_owned();
+    let array_owned = array_view.to_owned();
 
     Ok(array_owned)
 }
@@ -490,11 +504,11 @@ fn columns_to_array1(dataframe: &LazyFrame, x_column_name: &str, y_column_name: 
     let chunked_array_x: &ChunkedArray<Float64Type> = series_x.f64()?;
     let chunked_array_y: &ChunkedArray<Float64Type> = series_y.f64()?;
 
-    let array_view_x: ndarray::prelude::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::prelude::Dim<[usize; 1]>> = chunked_array_x.to_ndarray()?;
-    let array_view_y: ndarray::prelude::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::prelude::Dim<[usize; 1]>> = chunked_array_y.to_ndarray()?;
+    let array_view_x = chunked_array_x.to_ndarray()?;
+    let array_view_y = chunked_array_y.to_ndarray()?;
 
-    let array_owned_x: ndarray::prelude::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> = array_view_x.to_owned();
-    let array_owned_y: ndarray::prelude::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> = array_view_y.to_owned();
+    let array_owned_x = array_view_x.to_owned();
+    let array_owned_y = array_view_y.to_owned();
 
     // Convert the Vecs into Array1<f64>
     Ok((array_owned_x, array_owned_y))
