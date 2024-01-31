@@ -9,7 +9,6 @@ edition = "2021"
 polars = { version = "0.37", features = ["lazy", "parquet", "ndarray"] }
 ndarray = "0.15"
 ndarray-stats = "0.5.1"
-ndhistogram = "0.9.0"
 egui = "0.25.0"
 eframe = "0.25.0"
 egui_plot = "0.25.0"

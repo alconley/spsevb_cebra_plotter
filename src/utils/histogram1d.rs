@@ -16,7 +16,7 @@ impl Histogram {
     }
 
     // Add a value to the histogram
-    pub fn add(&mut self, value: f64) {
+    pub fn fill(&mut self, value: f64) {
         if value >= self.range.0 && value < self.range.1 {
             let index = ((value - self.range.0) / self.bin_width) as usize;
             if index < self.bins.len() {

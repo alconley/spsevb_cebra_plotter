@@ -98,13 +98,13 @@ impl PlotManager {
             for (i, selected_name) in self.selected_histograms.iter().enumerate() {
                 // Render the appropriate histogram type based on its type.
                 match self.get_histogram_type(selected_name) {
-                    Some(HistogramTypes::Hist1D(hist1d)) => {
+                    Some(HistogramTypes::Hist1D(hist)) => {
                         // Render a 1D histogram as a step line.
                         if let Some(step_line) = self.histogrammer.egui_histogram_step(selected_name, colors[i % colors.len()]) {
                             plot_ui.line(step_line);
 
                             
-                            let stats: (u32, f64, f64) = hist1d.stats(plot_min_x, plot_max_x);
+                            let stats: (u32, f64, f64) = hist.stats(plot_min_x, plot_max_x);
 
                             let integral_text: &String = &format!("Integral: {}", stats.0);
                             let mean_text: &String = &format!("Mean: {:.2}", stats.1);

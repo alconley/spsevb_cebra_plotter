@@ -2435,15 +2435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ndhistogram"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34b123d2b1dfb81cc7313f00c8a6c9269159dbb2195f44bd229a6e074ce2fec3"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "ndk"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3899,7 +3890,6 @@ dependencies = [
  "geo",
  "ndarray",
  "ndarray-stats",
- "ndhistogram",
  "polars",
  "rfd",
  "serde",

@@ -1,149 +1,17 @@
 use ndarray::Array1;
-use ndhistogram::{ndhistogram, Histogram, VecHistogram, AxesTuple, axis::Uniform};
 use std::collections::HashMap;
 use eframe::egui::{Color32, Stroke};
 
 use egui_plot::{Bar, Orientation, BarChart, Line, PlotPoints};
 use polars::prelude::*;
 
-use crate::utils::histogram1d::Histogram as Histogram1D;
-
-/// Represents statistics for a histogram.
-// pub struct HistogramStatistics {
-//     pub integral: f64,
-//     pub mean_x: f64,
-//     pub stdev_x: f64,
-//     pub mean_y: f64,
-//     pub stdev_y: f64,
-//     // Include other statistics as needed
-// }
-
-/// Represents a two-dimensional histogram.
-pub struct Hist2D {
-    pub name: String,
-    pub x_range: (f64, f64),
-    pub x_bin_width: f64,
-    pub y_range: (f64, f64),
-    pub y_bin_width: f64,
-    pub hist: VecHistogram<AxesTuple<(Uniform<f64>, Uniform<f64>)>, f64>,
-    pub min_value: f64, // Minimum histogram value
-    pub max_value: f64, // Maximum histogram value
-}
-
-// future make the histogram a HashHistogram 
-impl Hist2D {
-    /// Creates a new `Hist2D` with the specified parameters.
-    ///
-    /// # Arguments
-    /// * `name` - A name for the histogram.
-    /// * `bins_x` - The number of bins for the X axis.
-    /// * `bins_y` - The number of bins for the Y axis.
-    /// * `x_range` - The range (min, max) for the X axis.
-    /// * `y_range` - The range (min, max) for the Y axis.
-    ///
-    /// # Returns
-    /// A new `Hist2D` instance.
-    pub fn new(name: String, x_bins: usize, x_range: (f64, f64), y_bins: usize, y_range: (f64, f64)) -> Hist2D {
-        let x_bin_width: f64 = (x_range.1 - x_range.0) / x_bins as f64;
-        let y_bin_width: f64 = (y_range.1 - y_range.0) / y_bins as f64;
-
-        let hist: VecHistogram<AxesTuple<(Uniform, Uniform)>, f64> = ndhistogram!(
-            Uniform::new(x_bins, x_range.0, x_range.1),
-            Uniform::new(y_bins, y_range.0, y_range.1)
-        );
-
-        // Initialize min and max values
-        let mut min_value: f64 = f64::INFINITY;
-        let mut max_value: f64 = f64::NEG_INFINITY;
-
-        // Calculate min and max values based on histogram data
-        for item in hist.iter() {
-            let count: f64 = *item.value;
-            min_value = min_value.min(count);
-            max_value = max_value.max(count);
-        }
-
-        // Hist2D { name, x_range, x_bin_width, y_range, y_bin_width, hist }
-        Hist2D { name, x_range, x_bin_width, y_range, y_bin_width, hist, min_value, max_value }
-    }
-
-    pub fn update_min_max_values(&mut self) {
-        self.min_value = f64::INFINITY;
-        self.max_value = f64::NEG_INFINITY;
-
-        for item in self.hist.iter() {
-            let count: f64 = *item.value;
-            self.min_value = self.min_value.min(count);
-            self.max_value = self.max_value.max(count);
-        }
-    }
-
-
-    /* Future work to get stats for 2D histograms
-    pub fn get_bin_x(&self, x: f64) -> Option<usize> {
-        if x < self.x_range.0 || x > self.x_range.1 {
-            return None;
-        }
-        
-        let bin_index: usize = (((x - self.x_range.0)) / self.x_bin_width).floor() as usize;
-        
-        Some(bin_index)
-    }
-
-    pub fn get_bin_y(&self, y: f64) -> Option<usize> {
-        if y < self.y_range.0 || y > self.x_range.1 {
-            return None;
-        }
-        
-        let bin_index: usize = (((y - self.y_range.0)) / self.y_bin_width).floor() as usize;
-        
-        Some(bin_index)
-    }
-
-    // pub fn calculate_statistics(&self, min_x: f64, max_x: f64, min_y: f64, max_y:f64) -> HistogramStatistics {
-            
-    //         let num_bins_x: usize = self.hist.axes().num_bins().0 - 2; // Subtract 2 to account for under/overflow bins
-    //         let num_bins_y: usize = self.hist.axes().num_bins().1 - 2; // Subtract 2 to account for under/overflow bins
-    
-    //         let start_bin_x: usize = self.get_bin_x(min_x).unwrap_or(0);
-    //         let end_bin_x: usize = self.get_bin_x(max_x).unwrap_or(num_bins_x);
-    
-    //         let start_bin_y: usize = self.get_bin_y(min_y).unwrap_or(0);
-    //         let end_bin_y: usize = self.get_bin_y(max_y).unwrap_or(num_bins_y);
-    
-    //         let mut integral: f64 = 0.0;
-    //         let mut bin_product_x: f64 = 0.0;
-    //         let mut bin_product_y: f64 = 0.0;
-    //         let mut squared_diff_sum_x: f64 = 0.0; // Sum of squared differences for standard deviation
-    //         let mut squared_diff_sum_y: f64 = 0.0; // Sum of squared differences for standard deviation
-    //         for bin_index_x in start_bin_x..=end_bin_x {
-    //             for bin_index_y in start_bin_y..=end_bin_y {
-    //                 // Calculate a coordinate within each bin's range
-    //                 let coordinate_x: f64 = self.x_range.0 + (bin_index_x as f64) * self.x_bin_width + self.x_bin_width / 2.0;
-    //                 let coordinate_y: f64 = self.y_range.0 + (bin_index_y as f64) * self.y_bin_width + self.y_bin_width / 2.0;
-    
-    //                 // Using a coordinate within the bin to get its value
-    //                 if let Some(value) = self.hist.value(&(coordinate_x, coordinate_y)) {
-    //                     integral += *value;
-    //                     bin_product_x += *value * coordinate_x;
-    //                     bin_product_y += *value * coordinate_y;
-    //                 }
-    //             }
-    //         }
-    
-    //         // Calculate the mean
-    //         let mean_x: f64 = bin_product_x / integral;
-    //         let mean_y: f64 = bin_product_y / integral;
-    
-    //         HistogramStatistics { integral , mean_x , stdev_x : 0.0, mean_y, stdev_y : 0.0}
-
-    // }
-*/
-}
+use crate::utils::histogram1d::Histogram;
+use crate::utils::histogram2d::Histogram2D;
 
 pub enum HistogramTypes {
-    Hist1D(Histogram1D),
-    Hist2D(Hist2D) 
+    Hist1D(Histogram),
+    Hist2D(Histogram2D) 
+
 }
 
 #[derive(Default)]
@@ -162,18 +30,18 @@ impl Histogrammer {
 
     // Adds a new 1D histogram to the histogram list.
     pub fn add_hist1d(&mut self, name: &str, bins: usize, range: (f64, f64)) {
-        let hist: Histogram1D = Histogram1D::new(bins, range); // Create a new histogram.
+        let hist: Histogram = Histogram::new(bins, range); // Create a new histogram.
         self.histogram_list.insert(name.to_string(), HistogramTypes::Hist1D(hist)); // Store it in the hashmap.
     }
 
     // Fills a 1D histogram with data.
     pub fn fill_hist1d(&mut self, name: &str, data: Array1<f64>) -> bool {
-        let hist: &mut Histogram1D = match self.histogram_list.get_mut(name) {
+        let hist: &mut Histogram = match self.histogram_list.get_mut(name) {
             Some(HistogramTypes::Hist1D(hist)) => hist,
             _ => return false,  // Return false if the histogram doesn't exist.
         };
 
-        data.iter().for_each(|&value| hist.add(value)); // Fill the histogram with data.
+        data.iter().for_each(|&value| hist.fill(value)); // Fill the histogram with data.
         
         true
     }
@@ -215,13 +83,13 @@ impl Histogrammer {
     
     // Adds a new 2D histogram to the histogram list.
     pub fn add_hist2d(&mut self, name: &str, x_bins: usize, x_range: (f64, f64), y_bins: usize, y_range: (f64, f64)) {
-        let hist: Hist2D = Hist2D::new(name.to_string(), x_bins, x_range, y_bins, y_range); // Create a new 2D histogram.
+        let hist: Histogram2D = Histogram2D::new(x_bins, x_range, y_bins, y_range); // Create a new 2D histogram.
         self.histogram_list.insert(name.to_string(), HistogramTypes::Hist2D(hist)); // Store it in the hashmap.
     }
 
     // Fills a 2D histogram with x and y data.
     pub fn fill_hist2d(&mut self, name: &str, x_data: Array1<f64>, y_data: Array1<f64>) -> bool {
-        let hist: &mut Hist2D = match self.histogram_list.get_mut(name) {
+        let hist: &mut Histogram2D = match self.histogram_list.get_mut(name) {
             Some(HistogramTypes::Hist2D(hist)) => hist,
             _ => return false, // Return false if the histogram doesn't exist.
         };
@@ -232,15 +100,11 @@ impl Histogrammer {
         }
 
         for (&x, &y) in x_data.iter().zip(y_data.iter()) {
-            hist.hist.fill(&(x, y)); // Fill the histogram with the (x, y) pairs.
+            hist.fill(x, y); // Fill the histogram with the (x, y) pairs.
         }
-
-        // Update min and max values after filling the histogram
-        hist.update_min_max_values(); // Assuming this is a method in Hist2D
 
         true
     }
-    
     // Fills a 2D histogram with data from Polars LazyFrame columns.
     pub fn fill_hist2d_from_polars(&mut self, name: &str, lf: &LazyFrame, x_column_name: &str, y_column_name: &str) {
         match columns_to_array1(lf, x_column_name, y_column_name) {
@@ -264,50 +128,27 @@ impl Histogrammer {
     // Generates a heatmap using the `egui` library based on a 2D histogram.
     pub fn egui_heatmap(&self, name: &str) -> Option<BarChart> {
         if let Some(HistogramTypes::Hist2D(hist)) = self.histogram_list.get(name) {
+            let bars_data = hist.generate_bar_data();           
             let mut bars = Vec::new();
 
-            let min: f64 = hist.min_value;
-            let max: f64 = hist.max_value;
+            let min: u32 = hist.min_count;
+            let max: u32 = hist.max_count;
+            for bar_data in bars_data {
 
-            for item in hist.hist.iter() {
-                let (x_bin, y_bin) = item.bin;
-                let count = *item.value;
-
-                // Skip bins with a count of 0 to improve performance.
-                if count == 0.0 {
-                    continue;
-                }
-
-                let x_bin_start: f64 = x_bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the x bin.
-                let x_bin_end: f64 = x_bin.end().unwrap_or(f64::INFINITY); // End of the x bin.
-    
-                let y_bin_start: f64 = y_bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the y bin.
-                let y_bin_end: f64 = y_bin.end().unwrap_or(f64::INFINITY); // End of the y bin.
-    
-                // Skip bins with infinite bounds to avoid rendering issues.
-                if x_bin_start.is_infinite() || x_bin_end.is_infinite() || y_bin_start.is_infinite() || y_bin_end.is_infinite() {
-                    continue;
-                }
-    
-                let x: f64 = (x_bin_start + x_bin_end) / 2.0; // Midpoint of the x bin.
-                let y: f64 = (y_bin_start + y_bin_end) / 2.0; // Midpoint of the y bin.
-                let bar_width: f64 = x_bin_end - x_bin_start; // Width of the x bin.
-                let height: f64 = y_bin_end - y_bin_start; // Height of the y bin.
+                let color: Color32 = viridis_colormap(bar_data.count, min, max); // Determine color based on the count, using a colormap.
                 
-                let color: Color32 = viridis_colormap(count, min, max); // Determine color based on the count, using a colormap.
-    
-                // Create a bar to represent the 2D histogram data.
                 let bar = Bar {
                     orientation: Orientation::Vertical,
-                    argument: x, // X-coordinate of the bar.
-                    value: height, // Height of the bar.
-                    bar_width, // Width of the bar.
-                    fill: color, // Color of the bar.
-                    stroke: Stroke::new(1.0, color), // Border color and width of the bar.
-                    name: format!("x = {}\ny = {}\n{}", x, y, count), // Label for the bar.
-                    base_offset: Some(y_bin_start), // Offset from the base (Y-coordinate of the start of the bin).
+                    argument: bar_data.x,
+                    value: bar_data.height,
+                    bar_width: bar_data.bar_width,
+                    fill: color,
+                    stroke: Stroke::new(1.0, color),
+                    name: format!("x = {}\ny = {}\n{}", bar_data.x, bar_data.y, bar_data.count),
+                    base_offset: Some(bar_data.y - bar_data.height / 2.0),
                 };
-                bars.push(bar); // Add the bar to the vector.
+                bars.push(bar);
+
             }
     
             // Return a BarChart object if the histogram exists, otherwise return None.
@@ -316,12 +157,16 @@ impl Histogrammer {
             None
         }
     }
-    
+        
 }
 
-fn viridis_colormap(value: f64, min: f64, max: f64) -> Color32 {
-    // Apply logarithmic normalization if required
-    let normalized: f64 = ((value - min) / (max - min)).clamp(0.0, 1.0);
+fn viridis_colormap(value: u32, min: u32, max: u32) -> Color32 {
+    // Handle case where min == max to avoid division by zero
+    let normalized: f64 = if max > min {
+        (value as f64 - min as f64) / (max as f64 - min as f64)
+    } else {
+        0.0
+    }.clamp(0.0, 1.0);
 
     // Key colors from the Viridis colormap
     let viridis_colors: [(f32, f32, f32); 32] = [
