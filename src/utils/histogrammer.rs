@@ -1,98 +1,22 @@
 use ndarray::Array1;
-use ndhistogram::{ndhistogram, Histogram, VecHistogram, AxesTuple, axis::Uniform, axis::Axis};
+use ndhistogram::{ndhistogram, Histogram, VecHistogram, AxesTuple, axis::Uniform};
 use std::collections::HashMap;
 use eframe::egui::{Color32, Stroke};
 
 use egui_plot::{Bar, Orientation, BarChart, Line, PlotPoints};
 use polars::prelude::*;
 
+use crate::utils::histogram1d::Histogram as Histogram1D;
+
 /// Represents statistics for a histogram.
-pub struct HistogramStatistics {
-    pub integral: f64,
-    pub mean_x: f64,
-    pub stdev_x: f64,
-    pub mean_y: f64,
-    pub stdev_y: f64,
-    // Include other statistics as needed
-}
-
-/// Represents a one-dimensional histogram.
-pub struct Hist1D {
-    pub name: String,
-    pub range: (f64, f64),
-    pub bin_width: f64,
-    pub hist: VecHistogram<AxesTuple<(Uniform<f64>,)>, f64>,
-}
-
-impl Hist1D {
-    /// Creates a new `Hist1D` with the specified parameters.
-    ///
-    /// # Arguments
-    /// * `name` - A name for the histogram.
-    /// * `bins` - The number of bins.
-    /// * `range` - The range (min, max) of the histogram.
-    ///
-    /// # Returns
-    /// A new `Hist1D` instance.
-    pub fn new(name: String, bins: usize, range: (f64, f64)) -> Hist1D {
-        let bin_width: f64 = (range.1 - range.0) / bins as f64;
-        let hist: VecHistogram<AxesTuple<(Uniform,)>, f64> = ndhistogram!(Uniform::<f64>::new(bins, range.0, range.1));
-
-        Hist1D { name, range, bin_width, hist }
-    }
-
-    // // Get the bin number for a given x position.
-    pub fn get_bin(&self, x: f64) -> Option<usize> {
-        if x < self.range.0 || x > self.range.1 {
-            return None;
-        }
-        
-        let bin_index: usize = (((x - self.range.0)) / self.bin_width).floor() as usize;
-        
-        Some(bin_index)
-    }
-
-    pub fn calculate_statistics(&self, min_x: f64, max_x: f64) -> HistogramStatistics {
-
-        let num_bins: usize = self.hist.axes().num_bins() - 2; // Subtract 2 to account for under/overflow bins
-
-        let start_bin: usize = self.get_bin(min_x).unwrap_or(0);
-        let end_bin: usize = self.get_bin(max_x).unwrap_or(num_bins);
-
-        let mut integral: f64 = 0.0;
-        let mut bin_product: f64 = 0.0;
-        let mut squared_diff_sum: f64 = 0.0; // Sum of squared differences for standard deviation
-        for bin_index in start_bin..=end_bin {
-            // Calculate a coordinate within each bin's range
-            let coordinate: f64 = self.range.0 + (bin_index as f64) * self.bin_width + self.bin_width / 2.0;
-
-            // Using a coordinate within the bin to get its value
-            if let Some(value) = self.hist.value(&coordinate) {
-                integral += *value;
-                bin_product += *value * coordinate;
-            }
-        }
-
-        // Calculate the mean
-        let mean: f64 = bin_product / integral;
-
-        // Second pass to calculate the squared differences
-        for bin_index in start_bin..=end_bin {
-            let coordinate: f64 = self.range.0 + (bin_index as f64) * self.bin_width + self.bin_width / 2.0;
-
-            if let Some(value) = self.hist.value(&coordinate) {
-                let diff: f64 = coordinate - mean;
-                squared_diff_sum += *value * diff * diff;
-            }
-        }
-
-        let variance: f64 = squared_diff_sum / integral;
-        let stdev: f64 = variance.sqrt();
-
-        HistogramStatistics { integral , mean_x : mean, stdev_x : stdev, mean_y : 0.0, stdev_y : 0.0}
-    }
-
-}
+// pub struct HistogramStatistics {
+//     pub integral: f64,
+//     pub mean_x: f64,
+//     pub stdev_x: f64,
+//     pub mean_y: f64,
+//     pub stdev_y: f64,
+//     // Include other statistics as needed
+// }
 
 /// Represents a two-dimensional histogram.
 pub struct Hist2D {
@@ -105,7 +29,6 @@ pub struct Hist2D {
     pub min_value: f64, // Minimum histogram value
     pub max_value: f64, // Maximum histogram value
 }
-
 
 // future make the histogram a HashHistogram 
 impl Hist2D {
@@ -219,7 +142,7 @@ impl Hist2D {
 }
 
 pub enum HistogramTypes {
-    Hist1D(Hist1D),
+    Hist1D(Histogram1D),
     Hist2D(Hist2D) 
 }
 
@@ -239,18 +162,18 @@ impl Histogrammer {
 
     // Adds a new 1D histogram to the histogram list.
     pub fn add_hist1d(&mut self, name: &str, bins: usize, range: (f64, f64)) {
-        let hist: Hist1D = Hist1D::new(name.to_string(), bins, range); // Create a new histogram.
+        let hist: Histogram1D = Histogram1D::new(bins, range); // Create a new histogram.
         self.histogram_list.insert(name.to_string(), HistogramTypes::Hist1D(hist)); // Store it in the hashmap.
     }
 
     // Fills a 1D histogram with data.
     pub fn fill_hist1d(&mut self, name: &str, data: Array1<f64>) -> bool {
-        let hist: &mut Hist1D = match self.histogram_list.get_mut(name) {
+        let hist: &mut Histogram1D = match self.histogram_list.get_mut(name) {
             Some(HistogramTypes::Hist1D(hist)) => hist,
             _ => return false,  // Return false if the histogram doesn't exist.
         };
 
-        data.iter().for_each(|&value| hist.hist.fill(&value)); // Fill the histogram with data.
+        data.iter().for_each(|&value| hist.add(value)); // Fill the histogram with data.
         
         true
     }
@@ -278,22 +201,7 @@ impl Histogrammer {
     // Generates a histogram using the bar chart from the `egui` library.
     pub fn egui_histogram_step(&self, name: &str, color: Color32) -> Option<Line> {
         if let Some(HistogramTypes::Hist1D(hist)) = self.histogram_list.get(name) {
-            let mut line_points: Vec<(f64, f64)> = Vec::new();
-
-            for item in hist.hist.iter() {
-                let start: f64 = item.bin.start().unwrap_or(f64::NEG_INFINITY); // Start of the bin.
-                let end: f64 = item.bin.end().unwrap_or(f64::INFINITY); // End of the bin.
-    
-                // Skip bins with infinite bounds.
-                if start.is_infinite() || end.is_infinite() {
-                    continue;
-                }
-
-                // Add points for the line at the start and end of each bar
-                line_points.push((start, *item.value));
-                line_points.push((end, *item.value));
-        
-            }
+            let line_points = hist.step_histogram_points();
 
             // Convert line_points to a Vec<[f64; 2]>
             let plot_points: PlotPoints = line_points.iter().map(|&(x, y)| [x, y]).collect();

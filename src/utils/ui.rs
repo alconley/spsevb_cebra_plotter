@@ -14,6 +14,7 @@ use crate::utils::histogrammer::Histogrammer;
 pub struct MyApp {
     selected_directory: Option<PathBuf>,
     file_paths: Vec<PathBuf>,
+    select_all: bool,
     histograms_loaded: bool,
     plot_manager: PlotManager,
     cut_file_path: Option<PathBuf>,
@@ -24,6 +25,7 @@ impl MyApp {
         Self {
             selected_directory: None, 
             file_paths: Vec::new(),
+            select_all: false,
             histograms_loaded: false,
             plot_manager: PlotManager::new(Histogrammer::new(), CutHandler::new()),
             cut_file_path: None,
@@ -96,18 +98,40 @@ impl eframe::App for MyApp {
                 ui.separator();
 
                 ui.label("Files in directory");
-                if ui.button("Select All").clicked() {
-                    if let Ok(entries) = fs::read_dir(dir) {
-                        for entry in entries.filter_map(Result::ok) {
-                            let path = entry.path();
-                            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("parquet") {
-                                if !self.file_paths.contains(&path) {
-                                    self.file_paths.push(path);
+
+                if ui.button(if self.select_all { "Deselect All" } else { "Select All" }).clicked() {
+                    if self.select_all {
+                        // Deselect all files
+                        self.file_paths.clear();
+                    } else {
+                        // Select all files
+                        if let Ok(entries) = fs::read_dir(dir) {
+                            for entry in entries.filter_map(Result::ok) {
+                                let path = entry.path();
+                                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("parquet") {
+                                    if !self.file_paths.contains(&path) {
+                                        self.file_paths.push(path);
+                                    }
                                 }
                             }
                         }
                     }
+                    // Toggle the state
+                    self.select_all = !self.select_all;
                 }
+
+                // if ui.button("Select All").clicked() {
+                //     if let Ok(entries) = fs::read_dir(dir) {
+                //         for entry in entries.filter_map(Result::ok) {
+                //             let path = entry.path();
+                //             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("parquet") {
+                //                 if !self.file_paths.contains(&path) {
+                //                     self.file_paths.push(path);
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
                 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     // Attempt to read the directory

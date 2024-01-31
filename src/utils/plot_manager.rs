@@ -104,10 +104,11 @@ impl PlotManager {
                             plot_ui.line(step_line);
 
                             
-                            let stats: super::histogrammer::HistogramStatistics = hist1d.calculate_statistics(plot_min_x, plot_max_x);
-                            let integral_text: &String = &format!("Integral: {}", stats.integral);
-                            let mean_text: &String = &format!("Mean: {:.2}", stats.mean_x);
-                            let stdev_text: &String = &format!("Stdev: {:.2}", stats.stdev_x);
+                            let stats: (u32, f64, f64) = hist1d.stats(plot_min_x, plot_max_x);
+
+                            let integral_text: &String = &format!("Integral: {}", stats.0);
+                            let mean_text: &String = &format!("Mean: {:.2}", stats.1);
+                            let stdev_text: &String = &format!("Stdev: {:.2}", stats.2);
 
                             // Found it was best to put these in the legend as a text box gets wanky with zooming in
                             plot_ui.text(
@@ -128,7 +129,6 @@ impl PlotManager {
                                 .color(colors[i % colors.len()])
                                 .name(stdev_text));
 
-                             
                         }
                     }
                     Some(HistogramTypes::Hist2D(_)) => {
