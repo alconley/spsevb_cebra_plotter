@@ -1,4 +1,3 @@
-use ndarray::Array1;
 use std::collections::HashMap;
 use eframe::egui::{Color32, Stroke};
 
@@ -34,36 +33,56 @@ impl Histogrammer {
         self.histogram_list.insert(name.to_string(), HistogramTypes::Hist1D(hist)); // Store it in the hashmap.
     }
 
-    // Fills a 1D histogram with data.
-    pub fn fill_hist1d(&mut self, name: &str, data: Array1<f64>) -> bool {
+    // Fills a 1D histogram with data from a polars dataframe/column.
+    pub fn fill_hist1d(&mut self, name: &str, lf: &LazyFrame, column_name: &str) -> bool {
         let hist: &mut Histogram = match self.histogram_list.get_mut(name) {
             Some(HistogramTypes::Hist1D(hist)) => hist,
             _ => return false,  // Return false if the histogram doesn't exist.
         };
 
-        data.iter().for_each(|&value| hist.fill(value)); // Fill the histogram with data.
-        
-        true
-    }
+        // Attempt to collect the LazyFrame into a DataFrame
+        let df_result = lf.clone().select([col(column_name)]).collect();
 
-    // Fills a 1D histogram with data from a Polars LazyFrame.
-    pub fn fill_hist1d_from_polars(&mut self, name: &str, lf: &LazyFrame, column_name: &str) {
-        match column_to_array1(lf, column_name) {
-            Ok(data) => {
-                if !self.fill_hist1d(name, data) {  // Fill the histogram with the data.
-                    eprintln!("Failed to fill histogram '{}' with data from column '{}'.", name, column_name);
+        // Handle the Result before proceeding
+        match df_result {
+            Ok(df) => {
+                // Now that we have a DataFrame, we can attempt to convert it to an ndarray
+                let ndarray_df_result = df.to_ndarray::<Float64Type>(IndexOrder::Fortran);
+
+                match ndarray_df_result {
+                    Ok(ndarray_df) => {
+                        // You now have the ndarray and can proceed with your logic
+                        let shape = ndarray_df.shape();
+                        let rows = shape[0];
+
+                        // Iterating through the ndarray and filling the histogram
+                        for i in 0..rows {
+                            let value = ndarray_df[[i, 0]];
+                            hist.fill(value);
+                        }
+
+                        true
+                    },
+                    Err(e) => {
+                        // Handle the error, for example, log it or return an error
+                        eprintln!("Failed to convert DataFrame to ndarray: {}", e);
+                        false
+                    }
                 }
-            }
+            },
             Err(e) => {
-                eprintln!("Error extracting data from column '{}': {:?}", column_name, e);
+                // Handle the error, for example, log it or return an error
+                eprintln!("Failed to collect LazyFrame: {}", e);
+                false
             }
         }
+
     }
 
     // Adds and fills a 1D histogram with data from a Polars LazyFrame.
-    pub fn add_fill_hist1d_from_polars(&mut self, name: &str, lf: &LazyFrame, column_name: &str, bins: usize, range: (f64, f64)) {
+    pub fn add_fill_hist1d(&mut self, name: &str, lf: &LazyFrame, column_name: &str, bins: usize, range: (f64, f64)) {
         self.add_hist1d(name, bins, range);  // Add the histogram.
-        self.fill_hist1d_from_polars(name, lf, column_name);  // Fill it with data.
+        self.fill_hist1d(name, lf, column_name);  // Fill it with data.
     }
 
     // Generates a histogram using the bar chart from the `egui` library.
@@ -88,41 +107,60 @@ impl Histogrammer {
     }
 
     // Fills a 2D histogram with x and y data.
-    pub fn fill_hist2d(&mut self, name: &str, x_data: Array1<f64>, y_data: Array1<f64>) -> bool {
+    pub fn fill_hist2d(&mut self, name: &str, lf: &LazyFrame, x_column_name: &str, y_column_name: &str) -> bool {
         let hist: &mut Histogram2D = match self.histogram_list.get_mut(name) {
             Some(HistogramTypes::Hist2D(hist)) => hist,
             _ => return false, // Return false if the histogram doesn't exist.
         };
 
-        if x_data.len() != y_data.len() {
-            eprintln!("Error: x_data and y_data lengths do not match.");
-            return false; // Ensure that the lengths of x and y data arrays are equal.
-        }
+        // Attempt to collect the LazyFrame into a DataFrame
+        let df_result = lf.clone()
+            .select([col(x_column_name), col(y_column_name)])
+            .filter(col(x_column_name).neq(lit(-1e6)))
+            .filter(col(y_column_name).neq(lit(-1e6)))
+            .collect();
 
-        for (&x, &y) in x_data.iter().zip(y_data.iter()) {
-            hist.fill(x, y); // Fill the histogram with the (x, y) pairs.
-        }
+        // Handle the Result before proceeding
+        match df_result {
+            Ok(df) => {
+                // Now that we have a DataFrame, we can attempt to convert it to an ndarray
+                let ndarray_df_result = df.to_ndarray::<Float64Type>(IndexOrder::Fortran);
 
-        true
-    }
-    // Fills a 2D histogram with data from Polars LazyFrame columns.
-    pub fn fill_hist2d_from_polars(&mut self, name: &str, lf: &LazyFrame, x_column_name: &str, y_column_name: &str) {
-        match columns_to_array1(lf, x_column_name, y_column_name) {
-            Ok((x_data, y_data)) => {
-                if !self.fill_hist2d(name, x_data, y_data) { // Fill the histogram with the extracted data.
-                    eprintln!("Failed to fill histogram '{}' with data from columns '{}' and '{}'.", name, x_column_name, y_column_name);
+                match ndarray_df_result {
+                    Ok(ndarray_df) => {
+                        // You now have the ndarray and can proceed with your logic
+                        let shape = ndarray_df.shape();
+                        let rows = shape[0];
+
+                        // Iterating through the ndarray rows and filling the 2D histogram
+                        for i in 0..rows {
+                            let x_value = ndarray_df[[i, 0]];
+                            let y_value = ndarray_df[[i, 1]];
+
+                            hist.fill(x_value, y_value);
+                        }
+
+                        true
+                    },
+                    Err(e) => {
+                        // Handle the error, for example, log it or return an error
+                        eprintln!("Failed to convert DataFrame to ndarray: {}", e);
+                        false
+                    }
                 }
-            }
+            },
             Err(e) => {
-                eprintln!("Error extracting data from columns '{}' and '{}': {:?}", x_column_name, y_column_name, e);
+                // Handle the error, for example, log it or return an error
+                eprintln!("Failed to collect LazyFrame: {}", e);
+                false
             }
         }
     }
 
     // Adds and fills a 2D histogram with data from Polars LazyFrame columns.
-    pub fn add_fill_hist2d_from_polars(&mut self, name: &str, lf: &LazyFrame, x_column_name: &str, x_bins: usize, x_range: (f64, f64), y_column_name: &str, y_bins: usize, y_range: (f64, f64)) {
+    pub fn add_fill_hist2d(&mut self, name: &str, lf: &LazyFrame, x_column_name: &str, x_bins: usize, x_range: (f64, f64), y_column_name: &str, y_bins: usize, y_range: (f64, f64)) {
         self.add_hist2d(name, x_bins, x_range, y_bins, y_range); // Add the histogram.
-        self.fill_hist2d_from_polars(name, lf, x_column_name, y_column_name); // Fill it with data.
+        self.fill_hist2d(name, lf, x_column_name, y_column_name); // Fill it with data.
     }
 
     // Generates a heatmap using the `egui` library based on a 2D histogram.
@@ -217,52 +255,4 @@ fn viridis_colormap(value: u32, min: u32, max: u32) -> Color32 {
     let blue: f32 = (color1.2 + fraction * (color2.2 - color1.2)) * 255.0;
 
     Color32::from_rgb(red as u8, green as u8, blue as u8)
-}
-
-fn column_to_array1(dataframe: &LazyFrame, column_name: &str) -> Result<Array1<f64>, PolarsError> {
-    // Collect the DataFrame
-    let df = dataframe
-        .clone()
-        .select([col(column_name)])
-        .filter(col(column_name).neq(lit(-1e6))) // Filter out -1e6 values
-        .collect()?;
-
-    // Extract the column as a Series
-    let series: &Series = df.column(column_name)?;
-
-    // Convert the Series to ChunkedArray<f64>
-    let chunked_array: &ChunkedArray<Float64Type> = series.f64()?;
-
-    // Convert the ChunkedArray<f64> to an ndarray view
-    let array_view = chunked_array.to_ndarray()?;
-
-    // Convert the view to an owned Array1<f64>
-    let array_owned = array_view.to_owned();
-
-    Ok(array_owned)
-}
-
-fn columns_to_array1(dataframe: &LazyFrame, x_column_name: &str, y_column_name: &str) -> Result<(Array1<f64>, Array1<f64>), PolarsError> {
-    // Select and filter the column, then collect into a DataFrame
-    let df: DataFrame = dataframe.clone()
-        .select([col(x_column_name), col(y_column_name)])
-        .filter(col(x_column_name).neq(lit(-1e6)))
-        .filter(col(y_column_name).neq(lit(-1e6)))
-        .collect()?;
-
-    let series_x: &Series = df.column(x_column_name)?;
-    let series_y: &Series = df.column(y_column_name)?;
-
-    // Try to convert the Series into a ChunkedArray of f64
-    let chunked_array_x: &ChunkedArray<Float64Type> = series_x.f64()?;
-    let chunked_array_y: &ChunkedArray<Float64Type> = series_y.f64()?;
-
-    let array_view_x = chunked_array_x.to_ndarray()?;
-    let array_view_y = chunked_array_y.to_ndarray()?;
-
-    let array_owned_x = array_view_x.to_owned();
-    let array_owned_y = array_view_y.to_owned();
-
-    // Convert the Vecs into Array1<f64>
-    Ok((array_owned_x, array_owned_y))
 }

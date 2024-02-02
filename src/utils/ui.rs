@@ -83,6 +83,7 @@ impl eframe::App for MyApp {
                         let paths_arc: Arc<[PathBuf]> = Arc::from(self.file_paths.clone().into_iter().collect::<Box<[_]>>());
 
                         match add_histograms(paths_arc.clone(), self.cut_file_path.clone()) {
+
                             Ok(histogrammer) => {
                                 // self.histogrammer = histogrammer;
                                 self.plot_manager.histogrammer = histogrammer;
@@ -119,19 +120,6 @@ impl eframe::App for MyApp {
                     // Toggle the state
                     self.select_all = !self.select_all;
                 }
-
-                // if ui.button("Select All").clicked() {
-                //     if let Ok(entries) = fs::read_dir(dir) {
-                //         for entry in entries.filter_map(Result::ok) {
-                //             let path = entry.path();
-                //             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("parquet") {
-                //                 if !self.file_paths.contains(&path) {
-                //                     self.file_paths.push(path);
-                //                 }
-                //             }
-                //         }
-                //     }
-                // }
                 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     // Attempt to read the directory

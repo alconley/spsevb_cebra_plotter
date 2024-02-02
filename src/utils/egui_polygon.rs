@@ -185,50 +185,6 @@ impl EditableEguiPolygon {
         Ok(filtered_df)
     }
 
-    /*
-    pub fn filter_dataframe_test(&self, dataframe: LazyFrame) -> Result<DataFrame, polars::error::PolarsError> {
-
-        // Takes a polars dataframe
-        // creates a mask based on the polygon and columns
-        // filters dataframe with the mask
-        // Saves dataframe to a new file
-        // The essentially destroys the lazy operation and should not be used on a large amount of data
-
-        let x_column_name = self.selected_x_column.clone()
-            .ok_or_else(|| PolarsError::ComputeError("X column name must be something".into()))?;
-        let y_column_name = self.selected_y_column.clone()
-            .ok_or_else(|| PolarsError::ComputeError("Y column name must be something".into()))?;
-
-        let df = dataframe
-            .filter(col(&x_column_name).neq(lit(-1e6)))
-            .filter(col(&y_column_name).neq(lit(-1e6)))
-            .collect()?;
-
-        let x_col = df.column(&x_column_name)?;
-        let y_col = df.column(&y_column_name)?;
-
-        let polygon = self.to_geo_polygon();
-
-        let mask = x_col.f64()?
-            .into_iter()
-            .zip(y_col.f64()?)
-            .map(|(x, y)| {
-                match (x, y) {
-                    (Some(x), Some(y)) => {
-                        let point = Point::new(x, y);
-                        polygon.contains(&point)
-                    },
-                    _ => false,
-                }
-            })
-            .collect::<BooleanChunked>();
-
-        let filtered_df = df.filter(&mask)?;
-
-        Ok(filtered_df)
-    }
-*/
-
 }
 
 

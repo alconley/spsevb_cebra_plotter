@@ -21,7 +21,7 @@ impl CutHandler {
     // UI handler for the cut handler.
     pub fn cut_handler_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Cutter");
+            ui.label("2D Cutter");
             ui.separator();
 
             if ui.button("New").clicked() {
