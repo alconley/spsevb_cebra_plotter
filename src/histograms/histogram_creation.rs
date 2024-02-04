@@ -32,10 +32,11 @@ pub fn add_histograms(file_paths: Arc<[PathBuf]>, cut_file_path: Option<PathBuf>
     // filter a dataframe
     let lf_bothplanes = lf.clone().filter(col("X1").neq(lit(-1e6))).filter(col("X2").neq(lit(-1e6)));
 
-    h.add_fill_hist1d("Xavg_bothplanes", &lf_bothplanes, "Xavg", 600, (-300.0, 300.0));
+    h.add_fill_hist1d("Xavg bothplanes", &lf_bothplanes, "Xavg", 600, (-300.0, 300.0));
 
-    h.add_fill_hist2d("AnodeBack_ScintLeft", &lf_bothplanes, "ScintLeftEnergy", 512, (0.0, 4096.0), "AnodeBackEnergy", 512, (0.0, 4096.0));
-    h.add_fill_hist1d("X1_bothplanes", &lf_bothplanes, "X1", 600, (-300.0, 300.0));
+    h.add_fill_hist2d("AnodeBack vs ScintLeft", &lf_bothplanes, "ScintLeftEnergy", 512, (0.0, 4096.0), "AnodeBackEnergy", 512, (0.0, 4096.0));
+    h.add_fill_hist1d("X1 bothplanes", &lf_bothplanes, "X1", 600, (-300.0, 300.0));
+    h.add_fill_hist1d("Cebra0Energy", &lf, "Cebra0Energy", 512, (0.0, 4096.0));
 
     Ok(h)
 }

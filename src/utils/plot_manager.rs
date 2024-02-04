@@ -92,49 +92,50 @@ impl PlotManager {
 
             let plot_min_x = plot_ui.plot_bounds().min()[0];
             let plot_max_x = plot_ui.plot_bounds().max()[0];
-            // let plot_min_y = plot_ui.plot_bounds().min()[1];
-            // let plot_max_y = plot_ui.plot_bounds().max()[1];
+            let plot_min_y = plot_ui.plot_bounds().min()[1];
+            let plot_max_y = plot_ui.plot_bounds().max()[1];
 
             for (i, selected_name) in self.selected_histograms.iter().enumerate() {
                 // Render the appropriate histogram type based on its type.
                 match self.get_histogram_type(selected_name) {
                     Some(HistogramTypes::Hist1D(hist)) => {
                         // Render a 1D histogram as a step line.
-                        if let Some(step_line) = self.histogrammer.egui_histogram_step(selected_name, colors[i % colors.len()]) {
+                        let hist_color = colors[i % colors.len()];
+                        // if let Some(step_line) = self.histogrammer.egui_histogram_step(selected_name, colors[i % colors.len()]) {
+                        if let Some(step_line) = self.histogrammer.egui_histogram_step(selected_name, hist_color) {
+
                             plot_ui.line(step_line);
 
-                            
-                            let stats: (u32, f64, f64) = hist.stats(plot_min_x, plot_max_x);
+                            let stats_entries = hist.legend_entries(plot_min_x, plot_max_x);
 
-                            let integral_text: &String = &format!("Integral: {}", stats.0);
-                            let mean_text: &String = &format!("Mean: {:.2}", stats.1);
-                            let stdev_text: &String = &format!("Stdev: {:.2}", stats.2);
-
-                            // Found it was best to put these in the legend as a text box gets wanky with zooming in
-                            plot_ui.text(
-                                Text::new(PlotPoint::new(0, 0), " ")
-                                .highlight(false) 
-                                .color(colors[i % colors.len()])
-                                .name(integral_text));
-
-                            plot_ui.text(
-                                Text::new(PlotPoint::new(0, 0), " ")
-                                .highlight(false) 
-                                .color(colors[i % colors.len()])
-                                .name(mean_text));
-
-                            plot_ui.text(
-                                Text::new(PlotPoint::new(0, 0), " ")
-                                .highlight(false) 
-                                .color(colors[i % colors.len()])
-                                .name(stdev_text));
-
+                            for (_i, entry) in stats_entries.iter().enumerate() {
+                                plot_ui.text(
+                                    Text::new(PlotPoint::new(0, 0), " ") // Placeholder for positioning; adjust as needed
+                                        .highlight(false)
+                                        .color(hist_color)
+                                        .name(entry)
+                                );
+                            }
                         }
                     }
-                    Some(HistogramTypes::Hist2D(_)) => {
+                    Some(HistogramTypes::Hist2D(hist)) => {
+                        
+                        let hist_color = colors[i % colors.len()];
+
                         // Render a 2D histogram as a heatmap.
                         if let Some(bar_chart) = self.histogrammer.egui_heatmap(selected_name) {
                             plot_ui.bar_chart(bar_chart);
+
+                            let stats_entries = hist.legend_entries(plot_min_x, plot_max_x, plot_min_y, plot_max_y);
+
+                            for (_i, entry) in stats_entries.iter().enumerate() {
+                                plot_ui.text(
+                                    Text::new(PlotPoint::new(0, 0), " ") // Placeholder for positioning; adjust as needed
+                                        .highlight(false)
+                                        .color(hist_color)
+                                        .name(entry)
+                                );
+                            }
                         }
                     }
 

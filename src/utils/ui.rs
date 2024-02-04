@@ -31,6 +31,7 @@ impl MyApp {
             cut_file_path: None,
         }
     }
+
 }
 
 impl eframe::App for MyApp {
@@ -76,6 +77,7 @@ impl eframe::App for MyApp {
                 ui.separator();
 
                 if ui.button("Load Histograms").clicked() {
+                    
                     self.histograms_loaded = false;
 
                     if !self.file_paths.is_empty() {

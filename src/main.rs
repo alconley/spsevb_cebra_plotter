@@ -9,7 +9,7 @@ fn main() -> Result<(), eframe::Error> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1500.0, 1000.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([1250.0, 750.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -17,6 +17,7 @@ fn main() -> Result<(), eframe::Error> {
         options,
         // Box::new(|_cc| Box::<MyApp>::default()),
         Box::new(|_cc| Box::new(<MyApp>::new())),
+
 
     )
 }
