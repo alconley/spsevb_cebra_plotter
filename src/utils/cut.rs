@@ -1,21 +1,28 @@
 use crate::utils::egui_polygon::EditableEguiPolygon;
-
-// typical cut names for sps experiments
-const CUT_COLUMN_NAMES: &[&str] = &[
-    "AnodeBackEnergy", "AnodeFrontEnergy", "Cathode",
-     "ScintLeftEnergy", "Xavg", "X1", "X2"
-];
+use std::collections::HashMap;
+use egui_plot::PlotUi;
 
 pub struct CutHandler {
-    pub current_editable_polygon: Option<EditableEguiPolygon>,
+    pub cuts: HashMap<String, EditableEguiPolygon>,
+    pub active_cut_id: Option<String>,
+    pub draw_flag: bool,
 }
 
 impl CutHandler {
     // Creates a new `CutHandler` instance.
     pub fn new() -> Self {
         Self {
-            current_editable_polygon: None,
+            cuts: HashMap::new(),
+            active_cut_id: None,
+            draw_flag: true,
         }
+    }
+
+    // Adds a new cut and makes it the active one
+    pub fn add_new_cut(&mut self) {
+        let new_id = format!("cut_{}", self.cuts.len() + 1);
+        self.cuts.insert(new_id.clone(), EditableEguiPolygon::new());
+        self.active_cut_id = Some(new_id); // Automatically make the new cut active
     }
 
     // UI handler for the cut handler.
@@ -25,73 +32,67 @@ impl CutHandler {
             ui.separator();
 
             if ui.button("New").clicked() {
-                self.create_new_cut();
+                self.add_new_cut();
             }
 
             ui.separator();
 
-            if ui.button("Load").clicked() {
-                let mut new_polygon = EditableEguiPolygon::new();
-                if let Err(e) = new_polygon.load_cut_from_json() {
-                    eprintln!("Error loading cut: {:?}", e);
-                } else {
-                    self.current_editable_polygon = Some(new_polygon);
+            // remove active cut
+            if let Some(active_id) = &self.active_cut_id {
+                if ui.button("Remove Active Cut").clicked() {
+                    self.cuts.remove(active_id);
+                    self.active_cut_id = None;
                 }
             }
 
-            // Show buttons if there is a current editable polygon
-            if let Some(editable_polygon) = self.current_editable_polygon.as_mut() {
-                // X Column ComboBox
-                egui::ComboBox::from_label("X Column")
-                    .selected_text(editable_polygon.selected_x_column.as_deref().unwrap_or(""))
-                    .width(125.0)
+        });
+
+        ui.horizontal(|ui| {
+
+            // If there are cuts, display a ComboBox to select the active cut
+            if !self.cuts.is_empty() {
+                let selected_label = self.active_cut_id.clone().unwrap_or_else(|| "Select a cut".to_string());
+                egui::ComboBox::from_label("Active Cut")
+                    .selected_text(&selected_label)
                     .show_ui(ui, |ui| {
-                        for &column in CUT_COLUMN_NAMES.iter() {
-                            if ui.selectable_label(editable_polygon.selected_x_column.as_deref() == Some(column), column).clicked() {
-                                editable_polygon.selected_x_column = Some(column.to_string());
-                            }
+                        ui.selectable_value(&mut self.active_cut_id, None, "None"); // Option to deselect any active cut
+                        for (id, _) in self.cuts.iter() {
+                            let label = format!("{}", id);
+                            ui.selectable_value(&mut self.active_cut_id, Some(id.clone()), &label);
                         }
                     });
-        
-                // Y Column ComboBox
-                egui::ComboBox::from_label("Y Column")
-                    .selected_text(editable_polygon.selected_y_column.as_deref().unwrap_or(""))
-                    .width(125.0)
-                    .show_ui(ui, |ui| {
-                        for &column in CUT_COLUMN_NAMES.iter() {
-                            if ui.selectable_label(editable_polygon.selected_y_column.as_deref() == Some(column), column).clicked() {
-                                editable_polygon.selected_y_column = Some(column.to_string());
-                            }
-                        }
-                    });
+            }
 
-                ui.separator();
-
-                // Save Cut button
-                let can_save: bool = editable_polygon.selected_x_column.is_some() && editable_polygon.selected_y_column.is_some();
-                if ui.add_enabled(can_save, egui::Button::new("Save")).clicked() {
-                    if let Err(e) = editable_polygon.save_cut_to_json() {
-                        eprintln!("Error saving cut: {:?}", e);
-                    }
+            // Display UI for the active cut
+            if let Some(active_id) = &self.active_cut_id {
+                if let Some(active_cut) = self.cuts.get_mut(active_id) {
+                    // ui.add_space(10.0); // Add some space before the active cut UI
+                    active_cut.cut_ui(ui);
                 }
 
                 ui.separator();
 
-                // Remove Cut button
-                if ui.button("Remove Cut").clicked() {
-                    // Remove the current editable polygon
-                    self.current_editable_polygon = None;
-                }
+                ui.checkbox(&mut self.draw_flag, "Draw");
             }
 
         });
     }
 
-
-    // Creates a new editable polygon.
-    fn create_new_cut(&mut self) {
-            self.current_editable_polygon = Some(EditableEguiPolygon::new());
+    // Method to draw the active cut
+    pub fn draw_active_cut(&mut self, plot_ui: &mut PlotUi) {
+        if self.draw_flag {
+            if let Some(active_id) = &self.active_cut_id {
+                if let Some(active_cut) = self.cuts.get_mut(active_id) {
+                    active_cut.draw(plot_ui);
+                }
+            }
         }
+    }
 
+    // pub fn filter_lf_with_cuts(&mut self, lf: &LazyFrame) -> Vec<PathBuf> {
+    //     let mut filtered_files = Vec::new();
+
+    //     filtered_files
+    // }
 
 }

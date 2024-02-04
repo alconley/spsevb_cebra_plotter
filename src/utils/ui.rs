@@ -17,7 +17,6 @@ pub struct MyApp {
     select_all: bool,
     histograms_loaded: bool,
     plot_manager: PlotManager,
-    cut_file_path: Option<PathBuf>,
 }
 
 impl MyApp {
@@ -28,7 +27,6 @@ impl MyApp {
             select_all: false,
             histograms_loaded: false,
             plot_manager: PlotManager::new(Histogrammer::new(), CutHandler::new()),
-            cut_file_path: None,
         }
     }
 
@@ -54,26 +52,6 @@ impl eframe::App for MyApp {
 
             if let Some(dir) = &self.selected_directory {
 
-                if ui.button("Select Cut File").clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        self.cut_file_path = Some(path);
-                    }
-                }
-    
-                // Display the selected cut file name
-                if let Some(cut_path) = &self.cut_file_path {
-                    if let Some(file_name) = cut_path.file_name().and_then(|name| name.to_str()) {
-                        ui.label(format!("Selected Cut File: {}", file_name));
-                    } else {
-                        ui.label("Selected Cut File: Invalid file name");
-                    }
-    
-                    // Add a button to remove the selected cut file
-                    if ui.button("Remove Cut File").clicked() {
-                        self.cut_file_path = None;
-                    }
-                }
-                
                 ui.separator();
 
                 if ui.button("Load Histograms").clicked() {
@@ -84,7 +62,7 @@ impl eframe::App for MyApp {
                         // Convert Vec<PathBuf> to Arc<[PathBuf]>
                         let paths_arc: Arc<[PathBuf]> = Arc::from(self.file_paths.clone().into_iter().collect::<Box<[_]>>());
 
-                        match add_histograms(paths_arc.clone(), self.cut_file_path.clone()) {
+                        match add_histograms(paths_arc.clone()) {
 
                             Ok(histogrammer) => {
                                 // self.histogrammer = histogrammer;

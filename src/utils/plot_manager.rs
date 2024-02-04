@@ -1,6 +1,6 @@
 use super::histogrammer::{Histogrammer, HistogramTypes};
 use egui_plot::{Plot, Legend, Text, PlotPoint};
-use eframe::egui::Color32;
+use eframe::egui::{self, Color32};
 
 use crate::utils::cut::CutHandler;
 
@@ -75,8 +75,11 @@ impl PlotManager {
         let plot = Plot::new("Combined Histogram")
             .legend(Legend::default())
             .clamp_grid(true)
-            .allow_drag(false);
-            // .allow_scroll(false);
+            .allow_drag(false)
+            .allow_zoom(false)
+            .allow_boxed_zoom(true)
+            .allow_scroll(true);
+
         
         // Display the plot in the UI.
         plot.show(ui, |plot_ui| {
@@ -99,6 +102,7 @@ impl PlotManager {
                 // Render the appropriate histogram type based on its type.
                 match self.get_histogram_type(selected_name) {
                     Some(HistogramTypes::Hist1D(hist)) => {
+
                         // Render a 1D histogram as a step line.
                         let hist_color = colors[i % colors.len()];
                         // if let Some(step_line) = self.histogrammer.egui_histogram_step(selected_name, colors[i % colors.len()]) {
@@ -116,6 +120,7 @@ impl PlotManager {
                                         .name(entry)
                                 );
                             }
+
                         }
                     }
                     Some(HistogramTypes::Hist2D(hist)) => {
@@ -136,6 +141,7 @@ impl PlotManager {
                                         .name(entry)
                                 );
                             }
+
                         }
                     }
 
@@ -146,11 +152,8 @@ impl PlotManager {
                 }
             }
 
-            // Draw the current EditableEguiPolygon
-            if let Some(editable_polygon) = self.cutter.current_editable_polygon.as_mut() {
-                editable_polygon.draw(plot_ui); 
-            }
-
+            self.cutter.draw_active_cut(plot_ui);
+            
         });
     }
 

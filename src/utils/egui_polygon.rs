@@ -15,6 +15,11 @@ use geo::{Point, Polygon, LineString, algorithm::contains::Contains};
 
 use polars::prelude::*;
 
+// typical cut names for sps experiments
+const CUT_COLUMN_NAMES: &[&str] = &[
+    "AnodeBackEnergy", "AnodeFrontEnergy", "Cathode",
+     "ScintLeftEnergy", "Xavg", "X1", "X2"
+];
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct EditableEguiPolygon {
@@ -43,6 +48,7 @@ impl EditableEguiPolygon {
         self.handle_mouse_interactions(plot_ui);   // Handle mouse interactions
         self.draw_vertices_and_polygon(plot_ui);   // Draw vertices and polygon
     }
+
 
     fn handle_mouse_interactions(&mut self, plot_ui: &mut PlotUi) {
         let response = plot_ui.response();
@@ -145,7 +151,7 @@ impl EditableEguiPolygon {
         Ok(())
     }
 
-    fn to_geo_polygon(&self) -> Polygon<f64> {
+    pub fn to_geo_polygon(&self) -> Polygon<f64> {
         let exterior_coords: Vec<_> = self.vertices.iter()
             .map(|&[x, y]| (x, y))
             .collect();
@@ -183,6 +189,57 @@ impl EditableEguiPolygon {
         let filtered_df = df.filter(&mask)?.lazy();
 
         Ok(filtered_df)
+    }
+
+    pub fn cut_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+
+            ui.separator();
+
+            // Y Column ComboBox
+            egui::ComboBox::from_label("Y Column")
+            .selected_text(self.selected_y_column.as_deref().unwrap_or(""))
+            .show_ui(ui, |ui| {
+                for &column in CUT_COLUMN_NAMES.iter() {
+                    if ui.selectable_label(self.selected_y_column.as_deref() == Some(column), column).clicked() {
+                        self.selected_y_column = Some(column.to_string());
+                    }
+                }
+            });
+
+            ui.separator();
+
+            // X Column ComboBox
+            egui::ComboBox::from_label("X Column")
+                .selected_text(self.selected_x_column.as_deref().unwrap_or(""))
+                .show_ui(ui, |ui| {
+                    for &column in CUT_COLUMN_NAMES.iter() {
+                        if ui.selectable_label(self.selected_x_column.as_deref() == Some(column), column).clicked() {
+                            self.selected_x_column = Some(column.to_string());
+                        }
+                    }
+                });
+
+            ui.separator();
+
+            // Load Cut button
+            if ui.button("Load Cut").clicked() {
+                if let Err(e) = self.load_cut_from_json() {
+                    eprintln!("Error loading cut: {:?}", e);
+                }
+            }
+
+            // Save Cut button
+            let can_save: bool = self.selected_x_column.is_some() && self.selected_y_column.is_some();
+            if ui.add_enabled(can_save, egui::Button::new("Save Cut")).clicked() {
+                if let Err(e) = self.save_cut_to_json() {
+                    eprintln!("Error saving cut: {:?}", e);
+                }
+            }
+
+            ui.separator();
+
+        });
     }
 
 }
