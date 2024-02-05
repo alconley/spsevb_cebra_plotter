@@ -151,12 +151,18 @@ impl EditableEguiPolygon {
         Ok(())
     }
 
-    pub fn to_geo_polygon(&self) -> Polygon<f64> {
+    fn to_geo_polygon(&self) -> Polygon<f64> {
         let exterior_coords: Vec<_> = self.vertices.iter()
             .map(|&[x, y]| (x, y))
             .collect();
         let exterior_line_string = LineString::from(exterior_coords);
         Polygon::new(exterior_line_string, vec![])
+    }
+
+    pub fn is_inside(&self, x: f64, y: f64) -> bool {
+        let point = Point::new(x, y);
+        let polygon = self.to_geo_polygon();
+        polygon.contains(&point)
     }
 
     pub fn filter_dataframe(&self, dataframe: &LazyFrame, x_column_name: &str, y_column_name: &str) -> Result<LazyFrame, polars::error::PolarsError> {

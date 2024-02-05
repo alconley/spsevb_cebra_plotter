@@ -154,9 +154,11 @@ impl eframe::App for MyApp {
             });
 
             egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+                if !self.file_paths.is_empty() {
+                    let paths_arc: Arc<[PathBuf]> = Arc::from(self.file_paths.clone().into_iter().collect::<Box<[_]>>());
+                    self.plot_manager.cutter.cut_handler_ui(ui, paths_arc);
+                }
                 
-                self.plot_manager.cutter.cut_handler_ui(ui);
-    
             });
 
             egui::CentralPanel::default().show(ctx, |ui| {
