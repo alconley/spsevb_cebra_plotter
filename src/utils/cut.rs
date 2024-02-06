@@ -3,6 +3,7 @@ use crate::utils::egui_polygon::EditableEguiPolygon;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::fs::File;
+use std::ffi::OsStr;
 
 use rfd::FileDialog;
 use egui_plot::PlotUi;
@@ -12,6 +13,8 @@ pub struct CutHandler {
     pub cuts: HashMap<String, EditableEguiPolygon>,
     pub active_cut_id: Option<String>,
     pub draw_flag: bool,
+    pub save_option: String,
+    pub save_seperate_suffix: String,
 }
 
 impl CutHandler {
@@ -21,6 +24,8 @@ impl CutHandler {
             cuts: HashMap::new(),
             active_cut_id: None,
             draw_flag: true,
+            save_option: "separate".to_string(),
+            save_seperate_suffix : "filtered".to_string(), // Default suffix for separate save option
         }
     }
 
@@ -53,22 +58,57 @@ impl CutHandler {
 
             ui.separator();
 
-            if ui.button("Save Cut Reduced DataFrame").clicked() {
-                // Open a save file dialog
-                if let Some(path) = FileDialog::new()
-                    .set_title("Save Reduced DataFrame")
-                    .add_filter("Parquet file", &["parquet"])
-                    .save_file() {
-                        // Convert PathBuf from dialog to a format suitable for your function
-                        let output_path = path;
-    
-                        // Here, you should call your filtering and saving method
-                        // Assuming this method exists and works with the provided file_paths and output_path
-                        if let Err(e) = self.filter_files_with_cuts_and_save(file_paths.clone(), &output_path) {
-                            eprintln!("Failed to save DataFrame: {:?}", e);
-                        }
+            if !self.cuts.is_empty() {
+
+                ui.label("Save Options: ")
+                    .on_hover_text("Saves the selected files after filtering the dataframes with the valid cuts (make sure the cuts have columns selected).\nThere are two options: Save to a single file or Save each dataframe separately. It is generally better to save each file separately as it takes less memory. After the files are filtered, then you can save them to a single file if desired.");
+
+                ui.radio_value(&mut self.save_option, "single".to_string(), "Same File");
+                ui.radio_value(&mut self.save_option, "separate".to_string(), "Multiple Files");
+                if self.save_option == "separate" {
+                    ui.label("Suffix: ")
+                        .on_hover_text("Custom suffix to append to the original file name when saving separately");
+                    ui.text_edit_singleline(&mut self.save_seperate_suffix);
+                }
+
+                if ui.button("Save").clicked() {
+
+                    // Depending on the save option, call the appropriate method
+                    match self.save_option.as_str() {
+                        "single" => {
+
+                            if let Some(path) = FileDialog::new()
+                            .set_title("Save Reduced DataFrame to a Single File")
+                            .add_filter("Parquet file", &["parquet"])
+                            .save_file() {
+
+                                // Call the method to save all filtered dataframes into one file
+                                if let Err(e) = self.filter_files_and_save_to_one_file(file_paths.clone(), &path) {
+                                    eprintln!("Failed to save DataFrame: {:?}", e);
+                                }
+
+                            }
+                        },
+                        "separate" => {                            
+                            if let Some(directory_path) = FileDialog::new()
+                            .set_title("Select Directory to Save Each DataFrame Separately")
+                            .pick_folder() {
+                            
+                                let suffix = self.save_seperate_suffix.clone();
+                
+                                // Assuming filter_files_and_save_separately expects a directory path and suffix
+                                if let Err(e) = self.filter_files_and_save_separately(file_paths.clone(), &directory_path, &suffix) {
+                                    eprintln!("Failed to save DataFrames separately: {:?}", e);
+                                }
+                            }
+                        },
+                        _ => {} // Handle other cases or do nothing
+                    
+                    }
                 }
             }
+
+            ui.separator();
 
 
         });
@@ -115,8 +155,7 @@ impl CutHandler {
         }
     }
 
-
-    pub fn filter_files_with_cuts_and_save(&mut self, file_paths: Arc<[PathBuf]>, output_path: &PathBuf) -> Result<(), PolarsError> {
+    pub fn filter_files_and_save_to_one_file(&mut self, file_paths: Arc<[PathBuf]>, output_path: &PathBuf) -> Result<(), PolarsError> {
         let args = ScanArgsParquet::default();
 
         // Assuming LazyFrame::scan_parquet_files constructs a LazyFrame from the list of files
@@ -134,21 +173,52 @@ impl CutHandler {
 
         // Write the filtered DataFrame to a Parquet file
         ParquetWriter::new(file)
+            .set_parallel(true)
             .finish(&mut filtered_df)?;
 
+        Ok(())
+    }
+
+    pub fn filter_files_and_save_separately(&mut self, file_paths: Arc<[PathBuf]>, output_dir: &PathBuf, custom_text: &str) -> Result<(), PolarsError> {
+        let args = ScanArgsParquet::default();
+    
+        for file_path in file_paths.iter() {
+            // Construct a LazyFrame for each file
+            let lf = LazyFrame::scan_parquet(file_path, args.clone())?;
+    
+            // Apply filtering logic as before, leading to a filtered LazyFrame
+            let filtered_lf = self.filter_lf_with_cuts(&lf)?; // Placeholder for applying cuts
+    
+            // Collect the LazyFrame into a DataFrame
+            let mut filtered_df = filtered_lf.collect()?;
+    
+            // Generate a new output file name by appending custom text to the original file name
+            let original_file_name = file_path.file_stem().unwrap_or(OsStr::new("default"));
+            let new_file_name = format!("{}_{}.parquet", original_file_name.to_string_lossy(), custom_text);
+            let output_file_path = output_dir.join(new_file_name);
+
+            // Open a file in write mode at the newly specified output path
+            let file = File::create(&output_file_path)
+                .map_err(|e| PolarsError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+
+            // Write the filtered DataFrame to a new Parquet file
+            ParquetWriter::new(file)
+                .set_parallel(true)
+                .finish(&mut filtered_df)?;
+                    }
+    
         Ok(())
     }
 
     pub fn filter_lf_with_cuts(&mut self, lf: &LazyFrame) -> Result<LazyFrame, PolarsError> {
 
         // this is a lot of work to filter the lazy frame with the cuts but it works
-
         let filtered_lf = lf.clone();
 
         // Iterate through the cuts, get column names, and filter the lazy frame with the null values (-1e6) first before collecting
         for (_id, cut) in self.cuts.iter() {
             if let (Some(x_col_name), Some(y_col_name)) = (&cut.selected_x_column, &cut.selected_y_column) {
-                let filtered_lf = filtered_lf.clone()
+                let _filtered_lf = filtered_lf.clone()
                     .filter(col(x_col_name).neq(lit(-1e6)))
                     .filter(col(y_col_name).neq(lit(-1e6)));
             }

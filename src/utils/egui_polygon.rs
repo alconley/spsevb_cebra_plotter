@@ -13,8 +13,6 @@ use rfd::FileDialog;
 
 use geo::{Point, Polygon, LineString, algorithm::contains::Contains};
 
-use polars::prelude::*;
-
 // typical cut names for sps experiments
 const CUT_COLUMN_NAMES: &[&str] = &[
     "AnodeBackEnergy", "AnodeFrontEnergy", "Cathode",
@@ -163,38 +161,6 @@ impl EditableEguiPolygon {
         let point = Point::new(x, y);
         let polygon = self.to_geo_polygon();
         polygon.contains(&point)
-    }
-
-    pub fn filter_dataframe(&self, dataframe: &LazyFrame, x_column_name: &str, y_column_name: &str) -> Result<LazyFrame, polars::error::PolarsError> {
-
-        let df = dataframe.clone()
-            // .select([col(x_column_name), col(y_column_name)])
-            .filter(col(x_column_name).neq(lit(-1e6)))
-            .filter(col(y_column_name).neq(lit(-1e6)))
-            .collect()?;
-
-        let x_col = df.column(x_column_name)?;
-        let y_col = df.column(y_column_name)?;
-
-        let polygon = self.to_geo_polygon();
-
-        let mask = x_col.f64()?
-            .into_iter()
-            .zip(y_col.f64()?)
-            .map(|(x, y)| {
-                match (x, y) {
-                    (Some(x), Some(y)) => {
-                        let point = Point::new(x, y);
-                        polygon.contains(&point)
-                    },
-                    _ => false,
-                }
-            })
-            .collect::<BooleanChunked>();
-
-        let filtered_df = df.filter(&mask)?.lazy();
-
-        Ok(filtered_df)
     }
 
     pub fn cut_ui(&mut self, ui: &mut egui::Ui) {

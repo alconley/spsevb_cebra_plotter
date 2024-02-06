@@ -1,15 +1,11 @@
 use polars::prelude::*;
 use std::sync::Arc;
 use std::path::PathBuf;
-use std::fs::File;
-use std::io::BufReader;
-use serde_json;
 
 use std::f64::consts::PI;
 
 
 use crate::utils::histogrammer::Histogrammer;
-use crate::utils::egui_polygon::EditableEguiPolygon;
 
 pub fn add_histograms(file_paths: Arc<[PathBuf]>) -> Result<Histogrammer, PolarsError> {
     
@@ -80,7 +76,7 @@ pub fn add_histograms(file_paths: Arc<[PathBuf]>) -> Result<Histogrammer, Polars
     h.add_fill_hist2d("DelayBackAverage v X2", &lf, "X2", 600, (-300.0, 300.0), "DelayBackAverageEnergy", 256, (0.0, 4096.0));
     h.add_fill_hist2d("DelayFrontAverage v Xavg", &lf, "Xavg", 600, (-300.0, 300.0), "DelayFrontAverageEnergy", 256, (0.0, 4096.0));
     h.add_fill_hist2d("DelayBackAverage v Xavg", &lf, "Xavg", 600, (-300.0, 300.0), "DelayBackAverageEnergy", 256, (0.0, 4096.0));
-    h.add_fill_hist2d("AnodeBack v ScintLeft", &lf, "ScintLeftEnergy", 256, (0.0, 4096.0), "AnodeBackEnergy", 256, (0.0, 4096.0));
+    h.add_fill_hist2d("AnodeBack v ScintLeft", &lf, "ScintLeftEnergy", 512, (0.0, 4096.0), "AnodeBackEnergy", 512, (0.0, 4096.0));
     h.add_fill_hist2d("AnodeFront v ScintLeft", &lf, "ScintLeftEnergy", 256, (0.0, 4096.0), "AnodeFrontEnergy", 256, (0.0, 4096.0));
     h.add_fill_hist2d("Cathode v ScintLeft", &lf, "ScintLeftEnergy", 256, (0.0, 4096.0), "CathodeEnergy", 256, (0.0, 4096.0));
     h.add_fill_hist2d("AnodeBack v ScintRight", &lf, "ScintRightEnergy", 256, (0.0, 4096.0), "AnodeBackEnergy", 256, (0.0, 4096.0));
@@ -159,24 +155,3 @@ pub fn add_histograms(file_paths: Arc<[PathBuf]>) -> Result<Histogrammer, Polars
     Ok(h)
 }
 
-
-fn cut_file_to_df(cut_file_path: &PathBuf, lf: &LazyFrame) -> Result<LazyFrame, polars::error::PolarsError> {
-
-    let file = File::open(cut_file_path)?;
-    let reader = BufReader::new(file);
-
-    let loaded_polygon: EditableEguiPolygon = serde_json::from_reader(reader)
-        .map_err(|e| PolarsError::ComputeError(format!("Failed to deserialize cut: {}", e).into()))?;
-
-
-    // Clone and extract the column names or return an error if they are None
-    let x_col = loaded_polygon.selected_x_column.clone()
-        .ok_or_else(|| PolarsError::ComputeError("X column name is missing in the cut file".into()))?;
-    let y_col = loaded_polygon.selected_y_column.clone()
-        .ok_or_else(|| PolarsError::ComputeError("Y column name is missing in the cut file".into()))?;
-
-    let df = loaded_polygon.filter_dataframe(lf, &x_col, &y_col)?;
-
-
-    Ok(df)
-}

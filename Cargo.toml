@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 polars = { version = "0.37", features = ["lazy", "parquet", "ndarray"] }
-egui = "0.25.0"
-eframe = "0.25.0"
-egui_plot = "0.25.0"
+egui = "0.26.0"
+eframe = "0.26.0"
+egui_plot = "0.26.0"
 env_logger = { version = "0.10", default-features = false, features = [
     "auto-color",
     "humantime",
